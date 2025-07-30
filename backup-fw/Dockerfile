@@ -1,5 +1,5 @@
 # Use slim variant for smaller image size
-FROM python:3.12.0-slim
+FROM python:3.9-slim
 
 # Set working directory
 WORKDIR /app
@@ -23,5 +23,5 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 COPY backup-fw/fortigate_backup.py /app
 
 
-# Start application when container is run
+# Start application
 CMD ["python", "fortigate_backup.py"]
