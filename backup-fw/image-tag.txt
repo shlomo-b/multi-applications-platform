@@ -1,1 +1,1 @@
-junipersw-v1.0.0
+fortigate-v1.0.0
