@@ -23,5 +23,5 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 COPY backup-fw/fortigate_backup.py /app
 
 
-# Start application
+# Start application when container is run
 CMD ["python", "fortigate_backup.py"]

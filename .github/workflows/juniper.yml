@@ -51,12 +51,12 @@ jobs:
           file: ./backup-sw/Dockerfile
           push: false
           load: true  # ← Required for Trivy to scan local image
-          tags: juniper-sw:${{ steps.tag.outputs.contents }}
+          tags: junipersw:${{ steps.tag.outputs.contents }}
 
       - name: Scan local image with Trivy
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: 'juniper-sw:${{ steps.tag.outputs.contents }}'  # ← Local image tag
+          image-ref: 'junipersw:${{ steps.tag.outputs.contents }}'  # ← Local image tag
           format: 'table' # format the output
           exit-code: 1  # ← Fail workflow on vulnerabilities
           ignore-unfixed: true # don't fail on vulnerabilities that are not fixed
@@ -64,7 +64,7 @@ jobs:
 
       # print the image with tag
       - name: Print image tag
-        run: echo "${{ secrets.DOCKERHUB_USERNAME }}/juniper-sw:${{ steps.tag.outputs.contents }}"
+        run: echo "${{ secrets.DOCKERHUB_USERNAME }}/junipersw:${{ steps.tag.outputs.contents }}"
 
       - name: output tag image only
         id: tag-only
@@ -79,8 +79,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/juniper-sw:${{ steps.tag-only.outputs.tag-image }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/juniper-sw:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/junipersw:${{ steps.tag-only.outputs.tag-image }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/junipersw:latest
 
       - name: Create Git tag from file
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
