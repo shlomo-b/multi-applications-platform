@@ -1,4 +1,4 @@
-name: Docker Image CI - Fortigate
+name: Docker Image CI - Blackjack
 
 on:
   push:
@@ -51,20 +51,20 @@ jobs:
           file: ./blackjack-app/Dockerfile
           push: false
           load: true  # ← Required for Trivy to scan local image
-          tags: fortigate:${{ steps.tag.outputs.contents }}
+          tags: blackjack:${{ steps.tag.outputs.contents }}
 
       - name: Scan local image with Trivy
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: 'fortigate:${{ steps.tag.outputs.contents }}'  # ← Local image tag
+          image-ref: 'blackjack:${{ steps.tag.outputs.contents }}'  # ← Local image tag
           format: 'table' # format the output
-          exit-code: 0  # ← Fail workflow on vulnerabilities
+          exit-code: 1  # ← Fail workflow on vulnerabilities
           ignore-unfixed: true # don't fail on vulnerabilities that are not fixed
           severity: 'CRITICAL' # only show critical vulnerabilities
 
       # print the image with tag
       - name: Print image tag
-        run: echo "${{ secrets.DOCKERHUB_USERNAME }}/fortigate:${{ steps.tag.outputs.contents }}"
+        run: echo "${{ secrets.DOCKERHUB_USERNAME }}/blackjack:${{ steps.tag.outputs.contents }}"
 
       - name: output tag image only
         id: tag-only
@@ -79,8 +79,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/fortigate:${{ steps.tag-only.outputs.tag-image }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/fortigate:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/blackjack:${{ steps.tag-only.outputs.tag-image }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/blackjack:latest
 
       - name: Create Git tag from file
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
