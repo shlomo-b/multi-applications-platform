@@ -1,1 +1,1 @@
-# project-blackjack
+# multi-applications-platform
