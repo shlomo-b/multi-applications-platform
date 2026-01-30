@@ -14,12 +14,14 @@ RUN pip install --upgrade pip
 
 # Install dependencies in a single RUN command to reduce layers
 # Clean up apt cache to reduce image size
-RUN pip install --no-cache-dir -r requirements.txt && \
-    apt-get update -y && \
+# Update packages first to get latest security fixes (including OpenSSL)
+RUN apt-get update -y && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         curl \
         iputils-ping \
         net-tools && \
+    pip install --no-cache-dir -r requirements.txt && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
