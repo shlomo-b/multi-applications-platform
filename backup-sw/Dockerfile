@@ -4,8 +4,12 @@ FROM python:3.9-slim
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first to leverage Docker cache
+
+# for CI github actions
 COPY backup-sw/requirements.txt /app
+
+# for local testing
+# COPY requirements.txt .
 
 RUN pip install --upgrade pip
 
@@ -20,8 +24,21 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# for CI github actions
 COPY backup-sw/juniper-sw.py /app
 
+# for local testing
+# COPY juniper-sw.py .
+
+# ------------ NEW (security best practice) -------------
+# Create a non-root user
+RUN adduser --disabled-password --gecos "" appuser --uid 1000
+
+# Make sure the user owns the files
+RUN chown -R appuser:appuser /app
+
+# Switch to the new user
+USER appuser
 
 # Start application when container is run
 CMD ["python", "juniper-sw.py"]
