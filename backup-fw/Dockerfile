@@ -5,10 +5,10 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # for CI github actions
-COPY backup-fw/requirements.txt /app
+COPY backup-fw/requirements.txt /usr/local/app/
 
 # for local testing
-# COPY requirements.txt .
+# COPY requirements.txt /usr/local/app/
 
 RUN pip install --upgrade pip
 
@@ -21,25 +21,26 @@ RUN apt-get update -y && \
         curl \
         iputils-ping \
         net-tools && \
-    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r /usr/local/app/requirements.txt && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # for CI github actions
-COPY backup-fw/fortigate_backup.py /app
+COPY backup-fw/fortigate_backup.py /usr/local/app/
 
 # for local testing
-# COPY fortigate_backup.py .
+# COPY fortigate_backup.py /usr/local/app/
 
 # ------------ NEW (security best practice) -------------
 # Create a non-root user
 RUN adduser --disabled-password --gecos "" appuser --uid 1000
 
 # Make sure the user owns the files
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appuser /usr/local/app && \
+    chown -R appuser:appuser /app
 
 # Switch to the new user
 USER appuser
 
-# Start application
-CMD ["python", "fortigate_backup.py"]
+# Start application (script in /usr/local/app, runs from /app where volume is mounted)
+CMD ["python", "/usr/local/app/fortigate_backup.py"]
