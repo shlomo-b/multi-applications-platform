@@ -227,26 +227,39 @@ def push_metrics():
         # Get current counter values from Pushgateway and accumulate them
         try:
             metrics_url = f"{PUSHGATEWAY_ADDR}/metrics"
-            response = requests.get(metrics_url, timeout=5)
+            response = requests.get(metrics_url, timeout=15)
+            response.raise_for_status()
             metrics_text = response.text
-            
-            # Extract current counter values for our job/instance
+
+            # Pushgateway may expose labels as instance,job or job,instance
+            def find_metric_value(metric_name):
+                num = r'(\d+(?:\.\d+)?)'
+                for order in (
+                    rf'instance="{re.escape(PUSHGATEWAY_INSTANCE)}",job="{re.escape(PUSHGATEWAY_JOB)}"',
+                    rf'job="{re.escape(PUSHGATEWAY_JOB)}",instance="{re.escape(PUSHGATEWAY_INSTANCE)}"',
+                ):
+                    pattern = rf'{re.escape(metric_name)}\{{{order}\}}\s+{num}'
+                    match = re.search(pattern, metrics_text)
+                    if match:
+                        return float(match.group(1))
+                return None
+
             counter_values = {}
-            for metric_name in ['backup_sw_connection_success_total', 'backup_sw_configuration_success_total', 
+            for metric_name in ['backup_sw_connection_success_total', 'backup_sw_configuration_success_total',
                                'backup_sw_s3_upload_success_total']:
-                pattern = rf'{re.escape(metric_name)}\{{instance="{re.escape(PUSHGATEWAY_INSTANCE)}",job="{re.escape(PUSHGATEWAY_JOB)}"\}}\s+(\d+(?:\.\d+)?)'
-                match = re.search(pattern, metrics_text)
-                if match:
-                    counter_values[metric_name] = float(match.group(1))
-            
-            # Extract gauge values (file sizes)
+                val = find_metric_value(metric_name)
+                if val is not None:
+                    counter_values[metric_name] = val
+
             gauge_values = {}
             for metric_name in ['backup_sw_s3_last_file_size_bytes', 'backup_sw_s3_total_bytes_uploaded']:
-                pattern = rf'{re.escape(metric_name)}\{{instance="{re.escape(PUSHGATEWAY_INSTANCE)}",job="{re.escape(PUSHGATEWAY_JOB)}"\}}\s+(\d+(?:\.\d+)?)'
-                match = re.search(pattern, metrics_text)
-                if match:
-                    gauge_values[metric_name] = float(match.group(1))
-            
+                val = find_metric_value(metric_name)
+                if val is not None:
+                    gauge_values[metric_name] = val
+
+            if counter_values:
+                print(f"✅ Accumulating: found existing counters for job={PUSHGATEWAY_JOB} instance={PUSHGATEWAY_INSTANCE}")
+
             # Add current counter values to the existing ones
             if 'backup_sw_connection_success_total' in counter_values:
                 current_val = BACKUP_SW_CONNECTION_SUCCESS_TOTAL._value.get()
@@ -272,10 +285,11 @@ def push_metrics():
             if 'backup_sw_s3_last_file_size_bytes' in gauge_values and BACKUP_SW_S3_LAST_FILE_SIZE_BYTES._value.get() == 0:
                 BACKUP_SW_S3_LAST_FILE_SIZE_BYTES.set(gauge_values['backup_sw_s3_last_file_size_bytes'])
                 
-        except (requests.RequestException, AttributeError, ValueError):
-            # Continue with current values (first run)
+        except (requests.RequestException, AttributeError, ValueError) as e:
+            # GET failed or parse failed: push current run only (counter won't accumulate this run)
+            print(f"⚠️ Could not fetch existing metrics from Pushgateway: {e}")
             pass
-        
+
         # Always use push_to_gateway to replace with accumulated values
         push_to_gateway(
             gateway=PUSHGATEWAY_ADDR,
