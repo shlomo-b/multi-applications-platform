@@ -226,14 +226,16 @@ def push_metrics():
         
         # Get current counter values from Pushgateway and accumulate them
         try:
-            metrics_url = f"{PUSHGATEWAY_ADDR}/metrics"
+            gateway_url = PUSHGATEWAY_ADDR if PUSHGATEWAY_ADDR.startswith(('http://', 'https://')) else f'http://{PUSHGATEWAY_ADDR}'
+            metrics_url = f"{gateway_url.rstrip('/')}/metrics"
             response = requests.get(metrics_url, timeout=15)
             response.raise_for_status()
             metrics_text = response.text
 
             # Pushgateway may expose labels as instance,job or job,instance
+            # Number can be integer, decimal, or scientific (e.g. 1.23e+06)
             def find_metric_value(metric_name):
-                num = r'(\d+(?:\.\d+)?)'
+                num = r'(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)'
                 for order in (
                     rf'instance="{re.escape(PUSHGATEWAY_INSTANCE)}",job="{re.escape(PUSHGATEWAY_JOB)}"',
                     rf'job="{re.escape(PUSHGATEWAY_JOB)}",instance="{re.escape(PUSHGATEWAY_INSTANCE)}"',
