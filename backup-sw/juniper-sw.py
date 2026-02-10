@@ -168,7 +168,12 @@ def backup_data():
             print(f"❌ BUCKET_NAME environment variable not set.")
             return False
 
-        s3_object_name = f"backups/{backup_file}"
+        # Build S3 object name: one folder per app, date in name (no extra paths)
+        # Example: backup-sw/juniper_backup_2026-02-10_113950.txt
+        base_name, ext = os.path.splitext(backup_file)
+        date_part = time.strftime("%Y-%m-%d")
+        time_part = time.strftime("%H%M%S")
+        s3_object_name = f"backup-sw/{base_name}_{date_part}_{time_part}{ext}"
 
         # Create a Boto3 S3 client
         try:
