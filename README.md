@@ -6,21 +6,21 @@ A platform for automated backup of network devices (Firewalls and Switches) and 
 
 This platform consists of three main applications:
 
-### 🔥 backup-fw (Fortigate Firewall Backup)
+###  backup-fw (Fortigate Firewall Backup)
 - Connects to Fortigate firewalls via SSH
 - Retrieves full configuration using `show full-configuration` command
 - Saves configuration to local file (`fortigate_backup.conf`)
 - Optionally uploads to cloud storage (AWS S3, Azure Blob Storage)
 - Optionally sends metrics to Prometheus Pushgateway
 
-### 🔌 backup-sw (Juniper Switch Backup)
+###  backup-sw (Juniper Switch Backup)
 - Connects to Juniper switches via SSH
 - Enters CLI mode and retrieves configuration using `show configuration | display set`
 - Saves configuration to local file (`juniper_backup.txt`)
 - Optionally uploads to cloud storage (AWS S3, Azure Blob Storage)
 - Optionally sends metrics to Prometheus Pushgateway
 
-### 🎮 blackjack-app (Blackjack Game)
+###  blackjack-app (Blackjack Game)
 - Simple web-based Blackjack card game
 - Flask web server running on port 80
 - Interactive HTML/JavaScript game interface
