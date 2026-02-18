@@ -26,10 +26,10 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 # for CI github actions
-COPY backup-sw/juniper-sw.py /usr/local/app/
+COPY backup-sw/juniper-sw.py backup-sw/metrics.py backup-sw/cloud_upload.py /usr/local/app/
 
 # for local testing
-# COPY juniper-sw.py /usr/local/app/
+# COPY juniper-sw.py metrics.py cloud_upload.py /usr/local/app/
 
 # ------------ NEW (security best practice) -------------
 # Create a non-root user
