@@ -185,3 +185,6 @@ cython_debug/
 
 #  ignore docker-compose.yml file
 docker-compose.yml
+
+#  ignore backup-fw-backups and backup-sw-backups volumes
+backups-files/
