@@ -14,14 +14,9 @@ if USE_AZURE:
 
 
 def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Optional[str]]:
-    """
-    Upload backup file to cloud (AWS S3 or Azure).
-    Returns (success, file_size, error_type).
-    On success, deletes the local file. On failure, error_type is set.
-    """
+    """Upload backup to cloud. Returns (success, file_size, error_type). On success, deletes local file."""
     if not USE_AWS and not USE_AZURE:
         return False, 0.0, None
-
     if not os.path.exists(backup_file):
         return False, 0.0, 'file_not_found'
 
@@ -36,13 +31,9 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
         if not bucket:
             return False, 0.0, 'missing_bucket_name'
         try:
-            s3 = boto3.client(
-                's3',
-                aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-            )
+            s3 = boto3.client('s3', aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'), aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'))
             s3.upload_file(backup_file, bucket, object_name)
-            print(f"✅ Backup file: {backup_file}, successfully uploaded to AWS S3 bucket: {bucket}")
+            print(f"✅ Backup uploaded to AWS S3 bucket: {bucket}")
             try:
                 os.remove(backup_file)
             except OSError:
@@ -50,7 +41,7 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             return True, float(file_size), None
         except Exception as e:
             error_type = 's3_client_error' if 'client' in str(e).lower() else 'upload_error'
-            print(f"❌ Error during AWS S3 upload: {e}")
+            print(f"❌ AWS S3 upload error: {e}")
             return False, 0.0, error_type
 
     if USE_AZURE:
@@ -62,18 +53,12 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
         if not all([account, container_name, tenant_id, client_id, client_secret]):
             return False, 0.0, 'missing_azure_config'
         try:
-            credential = ClientSecretCredential(
-                tenant_id=tenant_id,
-                client_id=client_id,
-                client_secret=client_secret,
-            )
-            account_url = f"https://{account}.blob.core.windows.net"
-            blob_service = BlobServiceClient(account_url=account_url, credential=credential)
-            container_client = blob_service.get_container_client(container_name)
-            blob_client = container_client.get_blob_client(object_name)
+            credential = ClientSecretCredential(tenant_id=tenant_id, client_id=client_id, client_secret=client_secret)
+            blob_service = BlobServiceClient(account_url=f"https://{account}.blob.core.windows.net", credential=credential)
+            blob_client = blob_service.get_container_client(container_name).get_blob_client(object_name)
             with open(backup_file, 'rb') as f:
                 blob_client.upload_blob(f, overwrite=True)
-            print(f"✅ Backup file: {backup_file}, successfully uploaded to Azure Blob container: {container_name}")
+            print(f"✅ Backup uploaded to Azure Blob container: {container_name}")
             try:
                 os.remove(backup_file)
             except OSError:
@@ -81,12 +66,11 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             return True, float(file_size), None
         except Exception as e:
             error_type = 'azure_client_error' if 'credential' in str(e).lower() or 'blob' in str(e).lower() else 'upload_error'
-            print(f"❌ Error during Azure Blob upload: {e}")
+            print(f"❌ Azure Blob upload error: {e}")
             return False, 0.0, error_type
 
     return False, 0.0, None
 
 
 def is_cloud_enabled() -> bool:
-    """Return True if at least one cloud provider (aws/azure) is enabled."""
     return USE_AWS or USE_AZURE

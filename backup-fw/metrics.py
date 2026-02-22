@@ -40,6 +40,8 @@ def init_failure_gauges() -> None:
     BACKUP_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='s3_client_error').inc(0)
     BACKUP_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='upload_error').inc(0)
     BACKUP_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='unknown_error').inc(0)
+    BACKUP_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_azure_config').inc(0)
+    BACKUP_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='azure_client_error').inc(0)
 
 
 def push_metrics(pushgateway_addr: str, job: str, instance: str) -> None:

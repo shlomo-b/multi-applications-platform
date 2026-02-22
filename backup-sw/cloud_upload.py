@@ -8,6 +8,9 @@ USE_AZURE = os.environ.get('azure', 'false').lower() == 'true'
 
 if USE_AWS:
     import boto3
+if USE_AZURE:
+    from azure.identity import ClientSecretCredential
+    from azure.storage.blob import BlobServiceClient
 
 
 def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Optional[str]]:
@@ -51,7 +54,35 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             return False, 0.0, error_type
 
     if USE_AZURE:
-        return False, 0.0, 'azure_not_implemented'
+        account = os.environ.get('AZURE_STORAGE_ACCOUNT')
+        container_name = os.environ.get('AZURE_STORAGE_CONTAINER')
+        tenant_id = os.environ.get('AZURE_TENANT_ID')
+        client_id = os.environ.get('AZURE_CLIENT_ID')
+        client_secret = os.environ.get('AZURE_CLIENT_SECRET')
+        if not all([account, container_name, tenant_id, client_id, client_secret]):
+            return False, 0.0, 'missing_azure_config'
+        try:
+            credential = ClientSecretCredential(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                client_secret=client_secret,
+            )
+            account_url = f"https://{account}.blob.core.windows.net"
+            blob_service = BlobServiceClient(account_url=account_url, credential=credential)
+            container_client = blob_service.get_container_client(container_name)
+            blob_client = container_client.get_blob_client(object_name)
+            with open(backup_file, 'rb') as f:
+                blob_client.upload_blob(f, overwrite=True)
+            print(f"✅ Backup file: {backup_file}, successfully uploaded to Azure Blob container: {container_name}")
+            try:
+                os.remove(backup_file)
+            except OSError:
+                pass
+            return True, float(file_size), None
+        except Exception as e:
+            error_type = 'azure_client_error' if 'credential' in str(e).lower() or 'blob' in str(e).lower() else 'upload_error'
+            print(f"❌ Error during Azure Blob upload: {e}")
+            return False, 0.0, error_type
 
     return False, 0.0, None
 
