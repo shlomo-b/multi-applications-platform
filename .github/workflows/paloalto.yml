@@ -1,0 +1,93 @@
+name: Docker Image CI - Palo-Alto
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'backup-palo-alto/**'
+  pull_request:
+    paths:
+      - 'backup-palo-alto/**'
+
+permissions:
+  contents: write
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+     
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # fetch the tag in the repo
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # read file and output the tag to contents
+      - name: read file
+        id: tag
+        run: |
+          echo "contents=$(cat ./backup-palo-alto/image-tag.txt)" >> $GITHUB_OUTPUT
+
+      # print the contents
+      - name: PrintFile contents
+        run: echo "${{ steps.tag.outputs.contents }}"      
+
+      - name: Build Docker image (no push yet)
+        uses: docker/build-push-action@v6
+        with:
+          context: . # the context is the root directory
+          file: ./backup-palo-alto/Dockerfile
+          push: false
+          load: true  # ← Required for Trivy to scan local image
+          tags: paloalto:${{ steps.tag.outputs.contents }}
+
+      - name: Scan local image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: 'paloalto:${{ steps.tag.outputs.contents }}'  # ← Local image tag
+          format: 'table' # format the output
+          exit-code: 1  # ← Fail workflow on vulnerabilities
+          ignore-unfixed: true # don't fail on vulnerabilities that are not fixed
+          severity: 'CRITICAL' # only show critical vulnerabilities
+
+      # print the image with tag
+      - name: Print image tag
+        run: echo "${{ secrets.DOCKERHUB_USERNAME }}/paloalto:${{ steps.tag.outputs.contents }}"
+
+      - name: output tag image only
+        id: tag-only
+        run: echo "tag-image=$(echo '${{ steps.tag.outputs.contents }}' | cut -d'-' -f2)" >> $GITHUB_OUTPUT 
+
+      - name: Push image to Docker Hub
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./backup-palo-alto/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/paloalto:${{ steps.tag-only.outputs.tag-image }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/paloalto:latest
+
+      - name: Create Git tag from file
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ steps.tag.outputs.contents }}
+          git push origin ${{ steps.tag.outputs.contents }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

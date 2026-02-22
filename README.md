@@ -1,26 +1,33 @@
 # Multi-Applications Platform
 
-A platform for automated backup of network devices (Firewalls and Switches) and a simple web-based Blackjack game, all with optional metrics collection.
+A platform for automated backup of network devices (Fortigate, Juniper, Palo Alto) and a simple web-based Blackjack game, all with optional metrics collection.
 
 ## Overview
 
-This platform consists of three main applications:
+This platform consists of four main applications:
 
-###  backup-fw (Fortigate Firewall Backup)
+### backup-fw (Fortigate Firewall Backup)
 - Connects to Fortigate firewalls via SSH
 - Retrieves full configuration using `show full-configuration` command
 - Saves configuration to local file (`fortigate_backup.conf`)
 - Optionally uploads to cloud storage (AWS S3, Azure Blob Storage)
 - Optionally sends metrics to Prometheus Pushgateway
 
-###  backup-sw (Juniper Switch Backup)
+### backup-sw (Juniper Switch Backup)
 - Connects to Juniper switches via SSH
 - Enters CLI mode and retrieves configuration using `show configuration | display set`
 - Saves configuration to local file (`juniper_backup.txt`)
 - Optionally uploads to cloud storage (AWS S3, Azure Blob Storage)
 - Optionally sends metrics to Prometheus Pushgateway
 
-###  blackjack-app (Blackjack Game)
+### backup-palo-alto (Palo Alto Firewall Backup)
+- Connects to Palo Alto firewalls via REST API (HTTPS)
+- Gets API key via keygen, then fetches running config with `show config running`
+- Saves configuration to local file (`palo_alto_backup.xml`)
+- Optionally uploads to cloud storage (AWS S3, Azure Blob Storage)
+- Optionally sends metrics to Prometheus Pushgateway
+
+### blackjack-app (Blackjack Game)
 - Simple web-based Blackjack card game
 - Flask web server running on port 80
 - Interactive HTML/JavaScript game interface
@@ -30,7 +37,7 @@ This platform consists of three main applications:
 ## Features
 
 - ✅ **SSH-based backup** - Secure connection to network devices
-- ✅ **Cloud storage** - AWS S3 and Azure Blob Storage support (GCP coming soon)
+- ✅ **Cloud storage** - AWS S3 and Azure Blob Storage (GCP coming soon)
 - ✅ **Metrics collection** - Prometheus metrics via Pushgateway (backup apps) and `/metrics` endpoint (blackjack)
 - ✅ **Modular architecture** - Separated concerns (metrics, cloud upload, main logic)
 - ✅ **Local storage** - Backup files stored in container when cloud is disabled
@@ -56,6 +63,13 @@ This platform consists of three main applications:
 - `PASSWORD` - SSH password
 - `SW_NAME` - Switch prompt identifier (e.g., `@Switch>`)
 
+**For backup-palo-alto:**
+- `HOST` - Palo Alto firewall IP address or hostname
+- `PORT` - API port (default: 443)
+- `USERNAME` - API username
+- `PASSWORD` - API password
+- `VERIFY_SSL` - Verify HTTPS certificate (`true`/`false`, default: `false` for self-signed)
+
 **For blackjack-app:**
 - No environment variables required - runs on port 80 by default
 
@@ -69,7 +83,11 @@ This platform consists of three main applications:
 
 **Cloud Storage (Azure Blob Storage):**
 - `azure` - Enable Azure upload (`true`/`false`, default: `false`)
-- *Azure credentials and configuration (coming soon)*
+- `AZURE_TENANT_ID` - Azure AD tenant ID (required if `azure=true`)
+- `AZURE_CLIENT_ID` - Azure AD app (client) ID (required if `azure=true`)
+- `AZURE_CLIENT_SECRET` - Azure AD app client secret (required if `azure=true`)
+- `AZURE_STORAGE_ACCOUNT` - Storage account name (required if `azure=true`)
+- `AZURE_STORAGE_CONTAINER` - Blob container name (required if `azure=true`)
 
 **Cloud Storage (GCP Cloud Storage):**
 - *GCP support in progress*
@@ -77,7 +95,7 @@ This platform consists of three main applications:
 **Metrics (Prometheus Pushgateway):**
 - `metrics-pushgw` - Enable metrics collection (`true`/`false`, default: `false`)
 - `PUSHGATEWAY_ADDR` - Pushgateway address (default: `pushgateway:9091`)
-- `PUSHGATEWAY_JOB` - Job name for metrics (default: `backup-fw` or `backup-sw`)
+- `PUSHGATEWAY_JOB` - Job name for metrics (e.g. `backup-fw`, `backup-sw`, `backup-palo-alto`)
 - `PUSHGATEWAY_INSTANCE` - Instance identifier (default: `HOST` or `unknown`)
 
 ## Usage
@@ -93,7 +111,7 @@ BUCKET_NAME=your_bucket_name
 ```
 
 When AWS is enabled:
-- Backup files are uploaded to S3 with format: `backup-fw/fortigate_backup_YYYY-MM-DD_HHMMSS.conf` or `backup-sw/juniper_backup_YYYY-MM-DD_HHMMSS.txt`
+- Backup files are uploaded to S3 with format: `backup-fw/fortigate_backup_YYYY-MM-DD_HHMMSS.conf`, `backup-sw/juniper_backup_YYYY-MM-DD_HHMMSS.txt`, or `backup-palo-alto/palo_alto_backup_YYYY-MM-DD_HHMMSS.xml`
 - Local backup file is **deleted** after successful upload
 
 ### Enable Azure Blob Storage
@@ -101,8 +119,16 @@ When AWS is enabled:
 Set the following environment variables:
 ```bash
 azure=true
-# Azure credentials (coming soon)
+AZURE_TENANT_ID=your_tenant_id
+AZURE_CLIENT_ID=your_client_id
+AZURE_CLIENT_SECRET=your_client_secret
+AZURE_STORAGE_ACCOUNT=your_storage_account_name
+AZURE_STORAGE_CONTAINER=your_container_name
 ```
+
+When Azure is enabled:
+- Backup files are uploaded to the blob container with the same path format as S3 (e.g. `backup-fw/fortigate_backup_YYYY-MM-DD_HHMMSS.conf`)
+- Local backup file is **deleted** after successful upload
 
 ### Enable Metrics Collection
 
@@ -118,7 +144,7 @@ PUSHGATEWAY_INSTANCE=your_instance_name
 
 If both `aws=false` and `azure=false` (or not set):
 - Backup file is saved locally in the container
-- File path is logged: `📁 Path: /app/fortigate_backup.conf` or `/app/juniper_backup.txt`
+- File path is logged: `📁 Path: /app/fortigate_backup.conf`, `/app/juniper_backup.txt`, or `/app/palo_alto_backup.xml`
 - File remains in container until next backup or pod restart
 
 ## Metrics
@@ -136,7 +162,7 @@ All metrics are prefixed with `backup_`:
   - `error_type`: `configuration_error`
 - `backup_s3_upload_success_total` - Total successful S3 uploads
 - `backup_s3_upload_failure_total{error_type}` - Total failed S3 uploads
-  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`
+  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
 
 #### Gauges
 - `backup_s3_last_file_size_bytes` - Size of last uploaded file (bytes)
@@ -164,7 +190,7 @@ All metrics are prefixed with `backup_sw_`:
   - `error_type`: `configuration_error`
 - `backup_sw_s3_upload_success_total` - Total successful S3 uploads
 - `backup_sw_s3_upload_failure_total{error_type}` - Total failed S3 uploads
-  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`
+  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
 
 #### Gauges
 - `backup_sw_s3_last_file_size_bytes` - Size of last uploaded file (bytes)
@@ -176,6 +202,34 @@ All metrics are prefixed with `backup_sw_`:
 
 #### Histograms
 - `backup_sw_duration_seconds{operation}` - Duration of operations (seconds)
+  - `operation`: `configuration`, `s3_upload`, `total`
+  - Buckets: `[1, 5, 10, 30, 60, 120, 300, 600]`
+
+### backup-palo-alto Metrics
+
+All metrics are prefixed with `backup_palo_`:
+
+#### Counters
+- `backup_palo_connection_success_total` - Total successful API (keygen) connections
+- `backup_palo_connection_failure_total{error_type}` - Total failed connections
+  - `error_type`: `authentication_error`, `api_error`, `connection_error`
+- `backup_palo_configuration_success_total` - Total successful configuration backups
+- `backup_palo_configuration_failure_total{error_type}` - Total failed backups
+  - `error_type`: `configuration_error`
+- `backup_palo_s3_upload_success_total` - Total successful cloud uploads
+- `backup_palo_s3_upload_failure_total{error_type}` - Total failed cloud uploads
+  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
+
+#### Gauges
+- `backup_palo_s3_last_file_size_bytes` - Size of last uploaded file (bytes)
+- `backup_palo_s3_total_bytes_uploaded` - Total bytes uploaded (accumulated)
+- `backup_palo_last_success_timestamp{operation}` - Unix timestamp of last success
+  - `operation`: `connection`, `configuration`, `s3_upload`
+- `backup_palo_last_failure_timestamp{operation}` - Unix timestamp of last failure
+  - `operation`: `connection`, `configuration`, `s3_upload`
+
+#### Histograms
+- `backup_palo_duration_seconds{operation}` - Duration of operations (seconds)
   - `operation`: `configuration`, `s3_upload`, `total`
   - Buckets: `[1, 5, 10, 30, 60, 120, 300, 600]`
 
@@ -224,11 +278,18 @@ services:
       - AWS_ACCESS_KEY_ID=your_aws_access_key_id
       - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
       - BUCKET_NAME=your_bucket_name
+      - AZURE_TENANT_ID=your_tenant_id
+      - AZURE_CLIENT_ID=your_client_id
+      - AZURE_CLIENT_SECRET=your_client_secret
+      - AZURE_STORAGE_ACCOUNT=your_storage_account
+      - AZURE_STORAGE_CONTAINER=your_container
       - PUSHGATEWAY_ADDR=your_pushgateway_address
       - PUSHGATEWAY_JOB=backup-fw
       - PUSHGATEWAY_INSTANCE=your_instance_name
     volumes:
       - backup-fw-backups:/app
+    depends_on:
+      - pushgateway
     restart: no
 
   backup-sw:
@@ -247,11 +308,48 @@ services:
       - AWS_ACCESS_KEY_ID=your_aws_access_key_id
       - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
       - BUCKET_NAME=your_bucket_name
+      - AZURE_TENANT_ID=your_tenant_id
+      - AZURE_CLIENT_ID=your_client_id
+      - AZURE_CLIENT_SECRET=your_client_secret
+      - AZURE_STORAGE_ACCOUNT=your_storage_account
+      - AZURE_STORAGE_CONTAINER=your_container
       - PUSHGATEWAY_ADDR=your_pushgateway_address
       - PUSHGATEWAY_JOB=backup-sw
       - PUSHGATEWAY_INSTANCE=your_instance_name
     volumes:
       - backup-sw-backups:/app
+    depends_on:
+      - pushgateway
+    restart: no
+
+  backup-palo-alto:
+    build:
+      context: ./backup-palo-alto
+      dockerfile: Dockerfile
+    environment:
+      - HOST=your_host
+      - PORT=443
+      - USERNAME=your_username
+      - PASSWORD=your_password
+      - VERIFY_SSL=false
+      - aws=true
+      - azure=false
+      - metrics-pushgw=true
+      - AWS_ACCESS_KEY_ID=your_aws_access_key_id
+      - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+      - BUCKET_NAME=your_bucket_name
+      - AZURE_TENANT_ID=your_tenant_id
+      - AZURE_CLIENT_ID=your_client_id
+      - AZURE_CLIENT_SECRET=your_client_secret
+      - AZURE_STORAGE_ACCOUNT=your_storage_account
+      - AZURE_STORAGE_CONTAINER=your_container
+      - PUSHGATEWAY_ADDR=your_pushgateway_address
+      - PUSHGATEWAY_JOB=backup-palo-alto
+      - PUSHGATEWAY_INSTANCE=your_instance_name
+    volumes:
+      - backup-palo-alto-backups:/app
+    depends_on:
+      - pushgateway
     restart: no
 
   blackjack-app:
@@ -261,6 +359,17 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+
+  pushgateway:
+    image: prom/pushgateway:v1.8.0
+    ports:
+      - "9091:9091"
+    restart: unless-stopped
+
+volumes:
+  backup-fw-backups:
+  backup-sw-backups:
+  backup-palo-alto-backups:
 ```
 
 ## Architecture
@@ -276,6 +385,12 @@ backup-fw/
 
 backup-sw/
 ├── juniper-sw.py          # Main script (SSH connection, config retrieval)
+├── cloud_upload.py        # Cloud storage logic (AWS/Azure)
+├── metrics.py             # Prometheus metrics and Pushgateway push
+└── Dockerfile
+
+backup-palo-alto/
+├── palo_alto_backup.py    # Main script (REST API, config retrieval)
 ├── cloud_upload.py        # Cloud storage logic (AWS/Azure)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
 └── Dockerfile
@@ -316,7 +431,7 @@ The game features:
 
 ## Exit Codes
 
-**Backup applications (backup-fw, backup-sw):**
+**Backup applications (backup-fw, backup-sw, backup-palo-alto):**
 - `0` - Success (configuration retrieved and cloud upload succeeded if enabled)
 - `1` - Failure (connection error, configuration error, or cloud upload failure)
 
@@ -330,7 +445,8 @@ The game features:
 - When cloud upload is enabled and succeeds, local backup files are automatically deleted
 - Metrics are only collected and pushed when `metrics-pushgw=true`
 - All metrics support accumulation across multiple runs via Pushgateway
-- S3 object names include date/time: `backup-fw/fortigate_backup_2026-02-07_123456.conf`
+- Cloud object names include date/time (e.g. `backup-fw/fortigate_backup_2026-02-07_123456.conf`, `backup-palo-alto/palo_alto_backup_2026-02-07_123456.xml`)
+- Azure Blob Storage uses the same env vars across all backup apps: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_CONTAINER`
 
 **Blackjack App:**
 - Simple Flask web application - no configuration needed
