@@ -140,6 +140,16 @@ PUSHGATEWAY_JOB=backup-fw
 PUSHGATEWAY_INSTANCE=your_instance_name
 ```
 
+When `metrics-pushgw=true`, backup jobs push metrics to Pushgateway. Prometheus scrapes Pushgateway, and you can visualize the data in Grafana.
+
+**Pushgateway UI** – job/instance groups for each backup (e.g. backup-fortigate, docker-backup-fw, docker-backup-sw, docker-backup-palo-alto):
+
+![Pushgateway UI – metric groups by job and instance](docs/images/pushgateway-ui.png)
+
+**Grafana dashboard** – example panels for connection success/failure, configuration success, S3 upload success/failure, and file size metrics:
+
+![Grafana dashboard – backup metrics (connection, configuration, S3 upload, file size)](docs/images/grafana-dashboard.png)
+
 ### Local Storage Only (No Cloud Upload)
 
 If both `aws=false` and `azure=false` (or not set):
