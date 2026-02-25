@@ -18,7 +18,7 @@ FW_NAME = os.environ.get('FW_NAME')
 
 USE_METRICS = os.environ.get('metrics-pushgw', 'false').lower() == 'true'
 PUSHGATEWAY_ADDR = os.environ.get('PUSHGATEWAY_ADDR', 'pushgateway:9091')
-PUSHGATEWAY_JOB = os.environ.get('PUSHGATEWAY_JOB', 'backup-fw')
+PUSHGATEWAY_JOB = os.environ.get('PUSHGATEWAY_JOB', 'backup-fw-fortigate')
 PUSHGATEWAY_INSTANCE = os.environ.get('PUSHGATEWAY_INSTANCE', HOST or 'unknown')
 
 
@@ -113,7 +113,7 @@ def backup_data() -> bool:
             print("⚠️  Cloud upload disabled and backup file not found.")
         return True  # Return True since file is kept locally (not an error)
 
-    success, file_size, error_type = cloud_upload.upload_backup(backup_file, "backup-fw")
+    success, file_size, error_type = cloud_upload.upload_backup(backup_file, "backup-fw-fortigate")
 
     if success:
         if USE_METRICS:

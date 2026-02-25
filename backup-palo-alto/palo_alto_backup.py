@@ -78,7 +78,7 @@ def get_full_configuration() -> bool:
             metrics.BACKUP_PALO_CONNECTION_SUCCESS_TOTAL.inc()
         print("✅ Successfully authenticated to Palo Alto")
 
-        # Fetch running config
+        # Fetch running config1
         try:
             values = {
                 'type': 'op',

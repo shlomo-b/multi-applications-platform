@@ -10,19 +10,19 @@ COPY backup-palo-alto/requirements.txt /usr/local/app/
 # for local testing
 # COPY requirements.txt /usr/local/app/
 
-RUN pip install --upgrade pip
 
 # Install dependencies in a single RUN command to reduce layers
 # Clean up apt cache to reduce image size
 # Update packages first to get latest security fixes (including OpenSSL)
+
+# hadolint ignore=DL3008
 RUN apt-get update -y && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-        curl \
-        iputils-ping \
-        net-tools && \
-    pip install --no-cache-dir -r /usr/local/app/requirements.txt && \
-    apt-get clean && \
+      curl \
+      iputils-ping \
+      net-tools && \
+    python -m pip install --no-cache-dir -r /usr/local/app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 # for CI github actions
