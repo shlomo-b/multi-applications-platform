@@ -14,7 +14,6 @@ COPY backup-palo-alto/requirements.txt /usr/local/app/
 # Install dependencies in a single RUN command to reduce layers
 # Clean up apt cache to reduce image size
 # Update packages first to get latest security fixes (including OpenSSL)
-RUN python -m pip install --no-cache-dir --upgrade pip
 
 # hadolint ignore=DL3008
 RUN apt-get update -y && \
