@@ -17,6 +17,7 @@ COPY backup-palo-alto/requirements.txt /usr/local/app/
 
 # hadolint ignore=DL3008
 RUN apt-get update -y && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
       curl \
       iputils-ping \
