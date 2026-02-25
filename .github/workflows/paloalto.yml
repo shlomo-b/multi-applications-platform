@@ -33,7 +33,32 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      #  Lint Dockerfile (Hadolint)
+      - name: Hadolint (Dockerfile lint)
+        uses: hadolint/hadolint-action@v2.1.0
+        with:
+          dockerfile: ./backup-palo-alto/Dockerfile
+          failure-threshold: warning
 
+       # secret scan using gitleaks
+      - name: Gitleaks (secret scan)    
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Trivy filesystem scan (misconfig + secrets)
+      - name: Trivy filesystem scan (misconfig + secrets)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+            scan-type: 'fs'
+            scan-ref: '.'
+            format: 'table'
+            exit-code: '1'
+            ignore-unfixed: true
+            severity: 'CRITICAL'
+            scanners: 'vuln,secret,config'
+      
       # read file and output the tag to contents
       - name: read file
         id: tag
@@ -52,6 +77,8 @@ jobs:
           push: false
           load: true  # ← Required for Trivy to scan local image
           tags: paloalto:${{ steps.tag.outputs.contents }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Scan local image with Trivy
         uses: aquasecurity/trivy-action@0.28.0
@@ -61,6 +88,20 @@ jobs:
           exit-code: 1  # ← Fail workflow on vulnerabilities
           ignore-unfixed: true # don't fail on vulnerabilities that are not fixed
           severity: 'CRITICAL' # only show critical vulnerabilities
+      
+      # Generate SBOM (CycloneDX) as artifact
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: 'paloalto:${{ steps.tag.outputs.contents }}'
+          format: 'cyclonedx'
+          output: 'sbom-cyclonedx.json'
+  
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom-cyclonedx.json
 
       # print the image with tag
       - name: Print image tag
@@ -81,6 +122,8 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/paloalto:${{ steps.tag-only.outputs.tag-image }}
             ${{ secrets.DOCKERHUB_USERNAME }}/paloalto:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Create Git tag from file
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
