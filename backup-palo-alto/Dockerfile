@@ -10,7 +10,6 @@ COPY backup-palo-alto/requirements.txt /usr/local/app/
 # for local testing
 # COPY requirements.txt /usr/local/app/
 
-RUN pip install --upgrade pip
 
 # Install dependencies in a single RUN command to reduce layers
 # Clean up apt cache to reduce image size
