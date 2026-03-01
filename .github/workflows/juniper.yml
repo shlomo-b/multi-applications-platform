@@ -4,10 +4,10 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - 'backup-sw/**'
+      - 'backup-juniper-sw/**'
   pull_request:
     paths:
-      - 'backup-sw/**'
+      - 'backup-juniper-sw/**'
 
 permissions:
   contents: write
@@ -34,11 +34,36 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      #  Lint Dockerfile (Hadolint)
+      - name: Hadolint (Dockerfile lint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ./backup-juniper-sw/Dockerfile
+          failure-threshold: warning
+
+      # secret scan using gitleaks
+      - name: Gitleaks (secret scan)    
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Trivy filesystem scan (misconfig + secrets)
+      - name: Trivy filesystem scan (misconfig + secrets)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+            scan-type: 'fs'
+            scan-ref: '.'
+            format: 'table'
+            exit-code: '1'
+            ignore-unfixed: true
+            severity: 'CRITICAL'
+            scanners: 'vuln,secret,config'
+
       # read file and output the tag to contents
       - name: read file
         id: tag
         run: |
-          echo "contents=$(cat ./backup-sw/image-tag.txt)" >> $GITHUB_OUTPUT
+          echo "contents=$(cat ./backup-juniper-sw/image-tag.txt)" >> $GITHUB_OUTPUT
 
       # print the contents
       - name: PrintFile contents
@@ -48,10 +73,12 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: . # the context is the root directory
-          file: ./backup-sw/Dockerfile
+          file: ./backup-juniper-sw/Dockerfile
           push: false
           load: true  # ← Required for Trivy to scan local image
           tags: junipersw:${{ steps.tag.outputs.contents }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Scan local image with Trivy
         uses: aquasecurity/trivy-action@0.28.0
@@ -75,12 +102,14 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./backup-sw/Dockerfile
+          file: ./backup-juniper-sw/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/junipersw:${{ steps.tag-only.outputs.tag-image }}
             ${{ secrets.DOCKERHUB_USERNAME }}/junipersw:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Create Git tag from file
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
