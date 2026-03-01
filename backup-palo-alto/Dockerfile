@@ -1,4 +1,4 @@
-# Use slim variant for smaller image size
+# Use slim variant for smaller image size s
 FROM python:3.9-slim
 
 # Set working directory
