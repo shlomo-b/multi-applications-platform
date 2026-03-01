@@ -5,7 +5,7 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # for CI github actions
-COPY backup-fw/requirements.txt /usr/local/app/
+COPY backup-fortgiate-fw/requirements.txt /usr/local/app/
 
 # for local testing
 # COPY requirements.txt /usr/local/app/
@@ -18,15 +18,14 @@ RUN pip install --upgrade pip
 RUN apt-get update -y && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-        curl \
-        iputils-ping \
-        net-tools && \
-    pip install --no-cache-dir -r /usr/local/app/requirements.txt && \
-    apt-get clean && \
+      curl \
+      iputils-ping \
+      net-tools && \
+    python -m pip install --no-cache-dir -r /usr/local/app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 # for CI github actions
-COPY backup-fw/fortigate_backup.py backup-fw/metrics.py backup-fw/cloud_upload.py /usr/local/app/
+COPY backup-fortgiate-fw/fortigate_backup.py backup-fortgiate-fw/metrics.py backup-fortgiate-fw/cloud_upload.py /usr/local/app/
 
 # for local testing
 # COPY fortigate_backup.py metrics.py cloud_upload.py /usr/local/app/

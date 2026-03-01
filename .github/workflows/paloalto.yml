@@ -11,7 +11,6 @@ on:
  
 permissions:
   contents: write
-  id-token: write
  
 jobs:
   docker:
@@ -113,29 +112,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/paloalto:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # # Cosign – Sign & Verify (Keyless OIDC)
-      # - name: Install Cosign
-      #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      #   uses: sigstore/cosign-installer@v3.8.1
-
-      # - name: Cosign sign image (by digest)
-      #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      #   env:
-      #     COSIGN_EXPERIMENTAL: "true"
-      #   run: |
-      #     cosign sign --yes \
-      #       ${{ secrets.DOCKERHUB_USERNAME }}/paloalto@${{ steps.build-and-push.outputs.digest }}
-
-      # - name: Cosign verify image
-      #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      #   env:
-      #     COSIGN_EXPERIMENTAL: "true"
-      #   run: |
-      #     cosign verify \
-      #       --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-      #       --certificate-identity-regexp "^https://github\.com/${{ github.repository }}/\.github/workflows/.*@refs/heads/main$" \
-      #       ${{ secrets.DOCKERHUB_USERNAME }}/paloalto@${{ steps.build-and-push.outputs.digest }}
  
       - name: Create Git tag from file
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
