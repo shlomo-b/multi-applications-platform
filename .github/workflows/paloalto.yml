@@ -137,12 +137,12 @@ jobs:
             --certificate-identity-regexp "^https://github\.com/${{ github.repository }}/\.github/workflows/.*@refs/heads/main$" \
             ${{ secrets.DOCKERHUB_USERNAME }}/paloalto@${{ steps.build-and-push.outputs.digest }}
  
-      - name: Create Git tag from file
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag ${{ steps.tag.outputs.contents }}
-          git push origin ${{ steps.tag.outputs.contents }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Create Git tag from file
+      #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      #   run: |
+      #     git config user.name "github-actions"
+      #     git config user.email "github-actions@github.com"
+      #     git tag ${{ steps.tag.outputs.contents }}
+      #     git push origin ${{ steps.tag.outputs.contents }}
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
