@@ -114,35 +114,35 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Cosign – Sign & Verify (Keyless OIDC)
-      - name: Install Cosign
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: sigstore/cosign-installer@v3.8.1
-
-      - name: Cosign sign image (by digest)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: |
-          cosign sign --yes \
-            ${{ secrets.DOCKERHUB_USERNAME }}/paloalto@${{ steps.build-and-push.outputs.digest }}
-
-      - name: Cosign verify image
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        run: |
-          cosign verify \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            --certificate-identity-regexp "^https://github\.com/${{ github.repository }}/\.github/workflows/.*@refs/heads/main$" \
-            ${{ secrets.DOCKERHUB_USERNAME }}/paloalto@${{ steps.build-and-push.outputs.digest }}
- 
-      # - name: Create Git tag from file
+      # # Cosign – Sign & Verify (Keyless OIDC)
+      # - name: Install Cosign
       #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      #   run: |
-      #     git config user.name "github-actions"
-      #     git config user.email "github-actions@github.com"
-      #     git tag ${{ steps.tag.outputs.contents }}
-      #     git push origin ${{ steps.tag.outputs.contents }}
+      #   uses: sigstore/cosign-installer@v3.8.1
+
+      # - name: Cosign sign image (by digest)
+      #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     COSIGN_EXPERIMENTAL: "true"
+      #   run: |
+      #     cosign sign --yes \
+      #       ${{ secrets.DOCKERHUB_USERNAME }}/paloalto@${{ steps.build-and-push.outputs.digest }}
+
+      # - name: Cosign verify image
+      #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      #   env:
+      #     COSIGN_EXPERIMENTAL: "true"
+      #   run: |
+      #     cosign verify \
+      #       --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      #       --certificate-identity-regexp "^https://github\.com/${{ github.repository }}/\.github/workflows/.*@refs/heads/main$" \
+      #       ${{ secrets.DOCKERHUB_USERNAME }}/paloalto@${{ steps.build-and-push.outputs.digest }}
+ 
+      - name: Create Git tag from file
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ steps.tag.outputs.contents }}
+          git push origin ${{ steps.tag.outputs.contents }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
