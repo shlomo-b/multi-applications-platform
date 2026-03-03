@@ -15,17 +15,17 @@ import metrics
 urllib3.disable_warnings(InsecureRequestWarning)
 
 # Configuration from environment
-HOST = os.environ.get('HOST')
-PORT = os.environ.get('PORT', '443')
-USERNAME = os.environ.get('USERNAME')
-PASSWORD = os.environ.get('PASSWORD')
+HOST = os.environ.get("HOST")
+PORT = os.environ.get("PORT", "443")
+USERNAME = os.environ.get("USERNAME")
+PASSWORD = os.environ.get("PASSWORD")
 backup_file = "palo_alto_backup.xml"
-VERIFY_SSL = os.environ.get('VERIFY_SSL', 'false').lower() == 'true'
+VERIFY_SSL = os.environ.get("VERIFY_SSL", "false").lower() == "true"
 
-USE_METRICS = os.environ.get('metrics-pushgw', 'false').lower() == 'true'
-PUSHGATEWAY_ADDR = os.environ.get('PUSHGATEWAY_ADDR', 'pushgateway:9091')
-PUSHGATEWAY_JOB = os.environ.get('PUSHGATEWAY_JOB', 'backup-palo-alto')
-PUSHGATEWAY_INSTANCE = os.environ.get('PUSHGATEWAY_INSTANCE', HOST or 'unknown')
+USE_METRICS = os.environ.get("metrics-pushgw", "false").lower() == "true"
+PUSHGATEWAY_ADDR = os.environ.get("PUSHGATEWAY_ADDR", "pushgateway:9091")
+PUSHGATEWAY_JOB = os.environ.get("PUSHGATEWAY_JOB", "backup-palo-alto")
+PUSHGATEWAY_INSTANCE = os.environ.get("PUSHGATEWAY_INSTANCE", HOST or "unknown")
 
 
 def get_full_configuration() -> bool:
@@ -36,11 +36,11 @@ def get_full_configuration() -> bool:
     if not all([HOST, USERNAME, PASSWORD]):
         print("❌ HOST, USERNAME, and PASSWORD must be set")
         if USE_METRICS:
-            metrics.BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type='connection_error').inc()
-            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation='connection').set(time.time())
+            metrics.BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type="connection_error").inc()
+            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="connection").set(time.time())
         return False
 
-    base_url = f"https://{HOST}:{PORT}" if PORT != '443' else f"https://{HOST}"
+    base_url = f"https://{HOST}:{PORT}" if PORT != "443" else f"https://{HOST}"
     api_base = f"{base_url}/api"
 
     try:
@@ -52,24 +52,23 @@ def get_full_configuration() -> bool:
             key_resp = requests.get(key_url, verify=VERIFY_SSL, timeout=30)
             key_resp.raise_for_status()
         except requests.RequestException as e:
-            resp = getattr(e, 'response', None)
+            resp = getattr(e, "response", None)
             status = resp.status_code if resp is not None else None
-            error_type = 'authentication_error' if status in (401, 403) else 'connection_error'
+            error_type = "authentication_error" if status in (401, 403) else "connection_error"
             if USE_METRICS:
                 metrics.BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type=error_type).inc()
-                metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation='connection').set(time.time())
+                metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="connection").set(time.time())
             print(f"❌ API keygen failed: {e}")
             return False
 
         root = ET.fromstring(key_resp.text)
-        key_elem = root.find('.//key')
+        key_elem = root.find(".//key")
         if key_elem is None or not key_elem.text:
-            status = root.find('.//status')
-            msg = root.find('.//msg')
+            msg = root.find(".//msg")
             err = msg.text if msg is not None else key_resp.text[:500]
             if USE_METRICS:
-                metrics.BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type='authentication_error').inc()
-                metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation='connection').set(time.time())
+                metrics.BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type="authentication_error").inc()
+                metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="connection").set(time.time())
             print(f"❌ API did not return a key: {err}")
             return False
 
@@ -78,55 +77,55 @@ def get_full_configuration() -> bool:
             metrics.BACKUP_PALO_CONNECTION_SUCCESS_TOTAL.inc()
         print("✅ Successfully authenticated to Palo Alto")
 
-        # Fetch running config1
+        # Fetch running config
         try:
             values = {
-                'type': 'op',
-                'cmd': '<show><config><running></running></config></show>',
-                'key': api_key,
+                "type": "op",
+                "cmd": "<show><config><running></running></config></show>",
+                "key": api_key,
             }
             config_resp = requests.post(f"{api_base}/", data=values, verify=VERIFY_SSL, timeout=60)
             config_resp.raise_for_status()
         except requests.RequestException as e:
-            error_type = 'configuration_error'
+            error_type = "configuration_error"
             if USE_METRICS:
                 metrics.BACKUP_PALO_CONFIGURATION_FAILURE_TOTAL.labels(error_type=error_type).inc()
-                metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation='configuration').set(time.time())
+                metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="configuration").set(time.time())
             print(f"❌ Failed to fetch running config: {e}")
             return False
 
         root = ET.fromstring(config_resp.text)
-        if root.find('.//result') is None and root.find('.//response') is None:
-            err = config_resp.text[:500] if config_resp.text else 'Unknown error'
+        if root.find(".//result") is None and root.find(".//response") is None:
+            err = config_resp.text[:500] if config_resp.text else "Unknown error"
             if USE_METRICS:
-                metrics.BACKUP_PALO_CONFIGURATION_FAILURE_TOTAL.labels(error_type='configuration_error').inc()
-                metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation='configuration').set(time.time())
+                metrics.BACKUP_PALO_CONFIGURATION_FAILURE_TOTAL.labels(error_type="configuration_error").inc()
+                metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="configuration").set(time.time())
             print(f"❌ Invalid config response: {err}")
             return False
 
-        with open(backup_file, 'w') as f:
+        with open(backup_file, "w") as f:
             f.write(config_resp.text)
 
         print(f"✅ Configuration saved to: {backup_file}")
         if USE_METRICS:
             metrics.BACKUP_PALO_CONFIGURATION_SUCCESS_TOTAL.inc()
-            metrics.BACKUP_PALO_LAST_SUCCESS_TIMESTAMP.labels(operation='configuration').set(time.time())
+            metrics.BACKUP_PALO_LAST_SUCCESS_TIMESTAMP.labels(operation="configuration").set(time.time())
             duration = time.time() - start_time
-            metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation='configuration').observe(duration)
+            metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation="configuration").observe(duration)
         return True
 
     except ET.ParseError as e:
         if USE_METRICS:
-            metrics.BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type='api_error').inc()
-            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation='connection').set(time.time())
+            metrics.BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type="api_error").inc()
+            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="connection").set(time.time())
         print(f"❌ Invalid API response (XML): {e}")
         return False
     except Exception as e:
         if error_type is None:
-            error_type = 'unknown_error'
+            error_type = "unknown_error"
         if USE_METRICS:
             metrics.BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type=error_type).inc()
-            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation='connection').set(time.time())
+            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="connection").set(time.time())
         print(f"❌ Error: {e}")
         return False
 
@@ -149,20 +148,21 @@ def backup_data() -> bool:
     if success:
         if USE_METRICS:
             metrics.BACKUP_PALO_S3_UPLOAD_SUCCESS_TOTAL.inc()
-            metrics.BACKUP_PALO_LAST_SUCCESS_TIMESTAMP.labels(operation='s3_upload').set(time.time())
+            metrics.BACKUP_PALO_LAST_SUCCESS_TIMESTAMP.labels(operation="s3_upload").set(time.time())
             metrics.record_upload_success(file_size)
             duration = time.time() - start_time
-            metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation='s3_upload').observe(duration)
+            metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation="s3_upload").observe(duration)
         return True
 
     if error_type:
         if USE_METRICS:
             metrics.BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type=error_type).inc()
-            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation='s3_upload').set(time.time())
+            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="s3_upload").set(time.time())
     return False
 
 
-if __name__ == "__main__":
+def run_backup_once() -> bool:
+    """Run a single backup cycle and push metrics (if enabled)."""
     overall_start_time = time.time()
 
     if USE_METRICS:
@@ -177,9 +177,22 @@ if __name__ == "__main__":
 
     if USE_METRICS:
         overall_duration = time.time() - overall_start_time
-        metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation='total').observe(overall_duration)
+        metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation="total").observe(overall_duration)
         metrics.push_metrics(PUSHGATEWAY_ADDR, PUSHGATEWAY_JOB, PUSHGATEWAY_INSTANCE)
     else:
         print("ℹ️  Metrics disabled. Set metrics-pushgw=true to enable Prometheus metrics.")
 
-    sys.exit(0 if (config_success and cloud_success) else 1)
+    return bool(config_success and cloud_success)
+
+
+if __name__ == "__main__":
+    # Decide whether to run once or via the cronjob helper, based on env.
+    cronjob_enabled = os.environ.get("CRONJOB_ENABLED", "false").lower() == "true"
+    if cronjob_enabled:
+        from cronjob import run_cron_loop
+
+        run_cron_loop()
+    else:
+        success = run_backup_once()
+        sys.exit(0 if success else 1)
+

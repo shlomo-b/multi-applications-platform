@@ -25,10 +25,10 @@ RUN apt-get update -y && \
     python -m pip install --no-cache-dir -r /usr/local/app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 # for CI github actions
-COPY backup-juniper-sw/juniper-sw.py backup-juniper-sw/metrics.py backup-juniper-sw/cloud_upload.py /usr/local/app/
+COPY backup-juniper-sw/juniper-sw.py backup-juniper-sw/metrics.py backup-juniper-sw/cloud_upload.py backup-juniper-sw/cronjob.py /usr/local/app/
 
 # for local testing
-# COPY juniper-sw.py metrics.py cloud_upload.py /usr/local/app/
+# COPY juniper-sw.py metrics.py cloud_upload.py cronjob.py /usr/local/app/
 
 # ------------ NEW (security best practice) -------------
 # Create a non-root user

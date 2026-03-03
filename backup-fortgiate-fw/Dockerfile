@@ -25,10 +25,10 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 # for CI github actions
-COPY backup-fortgiate-fw/fortigate_backup.py backup-fortgiate-fw/metrics.py backup-fortgiate-fw/cloud_upload.py /usr/local/app/
+COPY backup-fortgiate-fw/fortigate_backup.py backup-fortgiate-fw/metrics.py backup-fortgiate-fw/cloud_upload.py backup-fortgiate-fw/cronjob.py /usr/local/app/
 
 # for local testing
-# COPY fortigate_backup.py metrics.py cloud_upload.py /usr/local/app/
+# COPY fortigate_backup.py metrics.py cloud_upload.py cronjob.py /usr/local/app/
 
 # ------------ NEW (security best practice) -------------
 # Create a non-root user

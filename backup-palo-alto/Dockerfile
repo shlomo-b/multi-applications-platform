@@ -26,10 +26,10 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 # for CI github actions
-COPY backup-palo-alto/palo_alto_backup.py backup-palo-alto/metrics.py backup-palo-alto/cloud_upload.py /usr/local/app/
+COPY backup-palo-alto/palo_alto_backup.py backup-palo-alto/metrics.py backup-palo-alto/cloud_upload.py backup-palo-alto/cronjob.py /usr/local/app/
 
 # for local testing
-# COPY palo_alto_backup.py metrics.py cloud_upload.py /usr/local/app/
+# COPY palo_alto_backup.py metrics.py cloud_upload.py cronjob.py /usr/local/app/
 
 # ------------ NEW (security best practice) -------------
 # Create a non-root user
