@@ -1,24 +1,25 @@
-import paramiko
-import time
-import select
 import os
 import re
+import select
 import sys
+import time
+
+import paramiko
 
 import cloud_upload
 import metrics
 
 # Config
-HOST = os.environ.get('HOST')
-PORT = os.environ.get('PORT')
-USERNAME = os.environ.get('USERNAME')
-PASSWORD = os.environ.get('PASSWORD')
+HOST = os.environ.get("HOST")
+PORT = os.environ.get("PORT")
+USERNAME = os.environ.get("USERNAME")
+PASSWORD = os.environ.get("PASSWORD")
 backup_file = "juniper_backup.txt"
-SW_NAME = os.environ.get('SW_NAME')
-USE_METRICS = os.environ.get('metrics-pushgw', 'false').lower() == 'true'
-PUSHGATEWAY_ADDR = os.environ.get('PUSHGATEWAY_ADDR', 'pushgateway:9091')
-PUSHGATEWAY_JOB = os.environ.get('PUSHGATEWAY_JOB', 'backup-sw-juniper')
-PUSHGATEWAY_INSTANCE = os.environ.get('PUSHGATEWAY_INSTANCE', HOST or 'unknown')
+SW_NAME = os.environ.get("SW_NAME")
+USE_METRICS = os.environ.get("metrics-pushgw", "false").lower() == "true"
+PUSHGATEWAY_ADDR = os.environ.get("PUSHGATEWAY_ADDR", "pushgateway:9091")
+PUSHGATEWAY_JOB = os.environ.get("PUSHGATEWAY_JOB", "backup-sw-juniper")
+PUSHGATEWAY_INSTANCE = os.environ.get("PUSHGATEWAY_INSTANCE", HOST or "unknown")
 
 
 def get_full_configuration():
@@ -137,14 +138,15 @@ def backup_data():
     if error_type:
         if USE_METRICS:
             metrics.BACKUP_SW_S3_UPLOAD_FAILURE_TOTAL.labels(error_type=error_type).inc()
-            metrics.BACKUP_SW_LAST_FAILURE_TIMESTAMP.labels(operation='s3_upload').set(time.time())
+            metrics.BACKUP_SW_LAST_FAILURE_TIMESTAMP.labels(operation="s3_upload").set(time.time())
     print(f"❌ Cloud upload failed (error_type={error_type})")
     return False
 
 
-if __name__ == "__main__":
+def run_backup_once() -> bool:
+    """Run a single backup cycle and push metrics (if enabled)."""
     overall_start_time = time.time()
-    
+
     if USE_METRICS:
         metrics.init_failure_gauges()
 
@@ -157,9 +159,20 @@ if __name__ == "__main__":
 
     if USE_METRICS:
         overall_duration = time.time() - overall_start_time
-        metrics.BACKUP_SW_DURATION_SECONDS.labels(operation='total').observe(overall_duration)
+        metrics.BACKUP_SW_DURATION_SECONDS.labels(operation="total").observe(overall_duration)
         metrics.push_metrics(PUSHGATEWAY_ADDR, PUSHGATEWAY_JOB, PUSHGATEWAY_INSTANCE)
     else:
         print("ℹ️  Metrics disabled. Set metrics-pushgw=true to enable Prometheus metrics.")
 
-    sys.exit(0 if (config_success and cloud_success) else 1)
+    return bool(config_success and cloud_success)
+
+
+if __name__ == "__main__":
+    cronjob_enabled = os.environ.get("CRONJOB_ENABLED", "false").lower() == "true"
+    if cronjob_enabled:
+        from cronjob import run_cron_loop
+
+        run_cron_loop()
+    else:
+        success = run_backup_once()
+        sys.exit(0 if success else 1)
