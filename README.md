@@ -150,6 +150,31 @@ When `metrics-pushgw=true`, backup jobs push metrics to Pushgateway. Prometheus 
 
 ![Grafana dashboard – backup metrics (connection, configuration, S3 upload, file size)](docs/images/grafana-dashboard.png)
 
+### Optional: Internal cron scheduling (Docker only)
+
+The backup images include a small internal scheduler that you can use **only when running via Docker or docker-compose** (not in Kubernetes).
+
+- `CRONJOB_ENABLED` – `true` / `false` (default: `false`)  
+- `CRONJOB_SCHEDULE` – standard cron expression (e.g. `*/2 * * * *`, `0 3 * * *`, `0 3 1 * *`)
+- `PYTHONUNBUFFERED` – set to `1` so logs are flushed immediately (optional but recommended for Docker)
+
+Example (docker-compose only):
+
+```yaml
+environment:
+  - CRONJOB_ENABLED=true
+  - CRONJOB_SCHEDULE=*/2 * * * *   # every 2 minutes
+  - PYTHONUNBUFFERED=1            # make Python logs appear immediately in docker logs
+```
+
+When enabled, the container stays running and the logs will show a clear description, for example:
+
+- `CRONJOB_ENABLED=true. This Fortigate cron job will run every 2 minutes (cron='*/2 * * * *').`
+- `CRONJOB_ENABLED=true. This Juniper cron job will run every day at 03:00 (cron='0 3 * * *').`
+- `CRONJOB_ENABLED=true. This Palo Alto cron job will run every month on day 1 at 03:00 (cron='0 3 1 * *').`
+
+In **Kubernetes**, you normally do **not** set these vars. Instead, you use a native `CronJob` resource to control the schedule, and each backup container runs once and exits.
+
 ### Local Storage Only (No Cloud Upload)
 
 If both `aws=false` and `azure=false` (or not set):
