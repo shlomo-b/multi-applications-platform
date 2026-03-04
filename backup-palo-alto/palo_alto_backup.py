@@ -147,17 +147,17 @@ def backup_data() -> bool:
 
     if success:
         if USE_METRICS:
-            metrics.BACKUP_PALO_S3_UPLOAD_SUCCESS_TOTAL.inc()
-            metrics.BACKUP_PALO_LAST_SUCCESS_TIMESTAMP.labels(operation="s3_upload").set(time.time())
+            metrics.BACKUP_PALO_STORAGE_CLOUD_UPLOAD_SUCCESS_TOTAL.inc()
+            metrics.BACKUP_PALO_LAST_SUCCESS_TIMESTAMP.labels(operation="storage_upload").set(time.time())
             metrics.record_upload_success(file_size)
             duration = time.time() - start_time
-            metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation="s3_upload").observe(duration)
+            metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation="storage_upload").observe(duration)
         return True
 
     if error_type:
         if USE_METRICS:
-            metrics.BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type=error_type).inc()
-            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="s3_upload").set(time.time())
+            metrics.BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type=error_type).inc()
+            metrics.BACKUP_PALO_LAST_FAILURE_TIMESTAMP.labels(operation="storage_upload").set(time.time())
     return False
 
 

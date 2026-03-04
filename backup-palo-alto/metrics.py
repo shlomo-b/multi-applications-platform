@@ -9,11 +9,11 @@ BACKUP_PALO_CONNECTION_SUCCESS_TOTAL = Counter('backup_palo_connection_success_t
 BACKUP_PALO_CONNECTION_FAILURE_TOTAL = Counter('backup_palo_connection_failure_total', 'Total number of failed Palo Alto API connections', ['error_type'], registry=registry)
 BACKUP_PALO_CONFIGURATION_SUCCESS_TOTAL = Counter('backup_palo_configuration_success_total', 'Total number of successful configuration backups', registry=registry)
 BACKUP_PALO_CONFIGURATION_FAILURE_TOTAL = Counter('backup_palo_configuration_failure_total', 'Total number of failed configuration backups', ['error_type'], registry=registry)
-BACKUP_PALO_S3_UPLOAD_SUCCESS_TOTAL = Counter('backup_palo_s3_upload_success_total', 'Total number of successful cloud uploads', registry=registry)
-BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL = Counter('backup_palo_s3_upload_failure_total', 'Total number of failed cloud uploads', ['error_type'], registry=registry)
+BACKUP_PALO_STORAGE_CLOUD_UPLOAD_SUCCESS_TOTAL = Counter('backup_palo_storage_cloud_upload_success_total', 'Total number of successful cloud uploads', registry=registry)
+BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL = Counter('backup_palo_storage_cloud_upload_failure_total', 'Total number of failed cloud uploads', ['error_type'], registry=registry)
 BACKUP_PALO_DURATION_SECONDS = Histogram('backup_palo_duration_seconds', 'Duration of backup operation in seconds', ['operation'], registry=registry, buckets=[1, 5, 10, 30, 60, 120, 300, 600])
-BACKUP_PALO_S3_LAST_FILE_SIZE_BYTES = Gauge('backup_palo_s3_last_file_size_bytes', 'Size of the last file uploaded in bytes', registry=registry)
-BACKUP_PALO_S3_TOTAL_BYTES_UPLOADED = Gauge('backup_palo_s3_total_bytes_uploaded', 'Total bytes uploaded (sum of all files uploaded in this run)', registry=registry)
+BACKUP_PALO_STORAGE_CLOUD_LAST_FILE_SIZE_BYTES = Gauge('backup_palo_storage_cloud_last_file_size_bytes', 'Size of the last file uploaded in bytes', registry=registry)
+BACKUP_PALO_STORAGE_CLOUD_TOTAL_BYTES_UPLOADED = Gauge('backup_palo_storage_cloud_total_bytes_uploaded', 'Total bytes uploaded (sum of all files uploaded in this run)', registry=registry)
 
 _total_bytes_uploaded_accumulator = 0
 BACKUP_PALO_LAST_SUCCESS_TIMESTAMP = Gauge('backup_palo_last_success_timestamp', 'Unix timestamp of last successful backup', ['operation'], registry=registry)
@@ -24,8 +24,8 @@ def record_upload_success(file_size: float) -> None:
     """Record a successful upload (update accumulator and gauge)."""
     global _total_bytes_uploaded_accumulator
     _total_bytes_uploaded_accumulator += file_size
-    BACKUP_PALO_S3_LAST_FILE_SIZE_BYTES.set(file_size)
-    BACKUP_PALO_S3_TOTAL_BYTES_UPLOADED.set(_total_bytes_uploaded_accumulator)
+    BACKUP_PALO_STORAGE_CLOUD_LAST_FILE_SIZE_BYTES.set(file_size)
+    BACKUP_PALO_STORAGE_CLOUD_TOTAL_BYTES_UPLOADED.set(_total_bytes_uploaded_accumulator)
 
 
 def init_failure_gauges() -> None:
@@ -34,13 +34,13 @@ def init_failure_gauges() -> None:
     BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type='api_error').inc(0)
     BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type='connection_error').inc(0)
     BACKUP_PALO_CONFIGURATION_FAILURE_TOTAL.labels(error_type='configuration_error').inc(0)
-    BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='file_not_found').inc(0)
-    BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_bucket_name').inc(0)
-    BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='s3_client_error').inc(0)
-    BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='upload_error').inc(0)
-    BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='unknown_error').inc(0)
-    BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_azure_config').inc(0)
-    BACKUP_PALO_S3_UPLOAD_FAILURE_TOTAL.labels(error_type='azure_client_error').inc(0)
+    BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='file_not_found').inc(0)
+    BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_bucket_name').inc(0)
+    BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='s3_client_error').inc(0)
+    BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='upload_error').inc(0)
+    BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='unknown_error').inc(0)
+    BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_azure_config').inc(0)
+    BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='azure_client_error').inc(0)
 
 
 def push_metrics(pushgateway_addr: str, job: str, instance: str) -> None:
@@ -69,13 +69,13 @@ def push_metrics(pushgateway_addr: str, job: str, instance: str) -> None:
                 return None
 
             counter_values = {}
-            for metric_name in ['backup_palo_connection_success_total', 'backup_palo_configuration_success_total', 'backup_palo_s3_upload_success_total']:
+            for metric_name in ['backup_palo_connection_success_total', 'backup_palo_configuration_success_total', 'backup_palo_storage_cloud_upload_success_total']:
                 val = find_metric_value(metric_name)
                 if val is not None:
                     counter_values[metric_name] = val
 
             gauge_values = {}
-            for metric_name in ['backup_palo_s3_last_file_size_bytes', 'backup_palo_s3_total_bytes_uploaded']:
+            for metric_name in ['backup_palo_storage_cloud_last_file_size_bytes', 'backup_palo_storage_cloud_total_bytes_uploaded']:
                 val = find_metric_value(metric_name)
                 if val is not None:
                     gauge_values[metric_name] = val
@@ -89,16 +89,16 @@ def push_metrics(pushgateway_addr: str, job: str, instance: str) -> None:
             if 'backup_palo_configuration_success_total' in counter_values:
                 current_val = BACKUP_PALO_CONFIGURATION_SUCCESS_TOTAL._value.get()
                 BACKUP_PALO_CONFIGURATION_SUCCESS_TOTAL._value._value = counter_values['backup_palo_configuration_success_total'] + current_val
-            if 'backup_palo_s3_upload_success_total' in counter_values:
-                current_val = BACKUP_PALO_S3_UPLOAD_SUCCESS_TOTAL._value.get()
-                BACKUP_PALO_S3_UPLOAD_SUCCESS_TOTAL._value._value = counter_values['backup_palo_s3_upload_success_total'] + current_val
+            if 'backup_palo_storage_cloud_upload_success_total' in counter_values:
+                current_val = BACKUP_PALO_STORAGE_CLOUD_UPLOAD_SUCCESS_TOTAL._value.get()
+                BACKUP_PALO_STORAGE_CLOUD_UPLOAD_SUCCESS_TOTAL._value._value = counter_values['backup_palo_storage_cloud_upload_success_total'] + current_val
 
-            if 'backup_palo_s3_total_bytes_uploaded' in gauge_values:
-                existing_total = gauge_values['backup_palo_s3_total_bytes_uploaded']
+            if 'backup_palo_storage_cloud_total_bytes_uploaded' in gauge_values:
+                existing_total = gauge_values['backup_palo_storage_cloud_total_bytes_uploaded']
                 new_total = existing_total + _total_bytes_uploaded_accumulator
-                BACKUP_PALO_S3_TOTAL_BYTES_UPLOADED.set(new_total)
-            if 'backup_palo_s3_last_file_size_bytes' in gauge_values and BACKUP_PALO_S3_LAST_FILE_SIZE_BYTES._value.get() == 0:
-                BACKUP_PALO_S3_LAST_FILE_SIZE_BYTES.set(gauge_values['backup_palo_s3_last_file_size_bytes'])
+                BACKUP_PALO_STORAGE_CLOUD_TOTAL_BYTES_UPLOADED.set(new_total)
+            if 'backup_palo_storage_cloud_last_file_size_bytes' in gauge_values and BACKUP_PALO_STORAGE_CLOUD_LAST_FILE_SIZE_BYTES._value.get() == 0:
+                BACKUP_PALO_STORAGE_CLOUD_LAST_FILE_SIZE_BYTES.set(gauge_values['backup_palo_storage_cloud_last_file_size_bytes'])
 
         except (requests.RequestException, AttributeError, ValueError) as e:
             print(f"⚠️ Could not fetch existing metrics from Pushgateway: {e}")

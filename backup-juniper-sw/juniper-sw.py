@@ -128,17 +128,17 @@ def backup_data():
 
     if success:
         if USE_METRICS:
-            metrics.BACKUP_SW_S3_UPLOAD_SUCCESS_TOTAL.inc()
-            metrics.BACKUP_SW_LAST_SUCCESS_TIMESTAMP.labels(operation='s3_upload').set(time.time())
+            metrics.BACKUP_SW_STORAGE_CLOUD_UPLOAD_SUCCESS_TOTAL.inc()
+            metrics.BACKUP_SW_LAST_SUCCESS_TIMESTAMP.labels(operation='storage_upload').set(time.time())
             metrics.record_upload_success(file_size)
             duration = time.time() - start_time
-            metrics.BACKUP_SW_DURATION_SECONDS.labels(operation='s3_upload').observe(duration)
+            metrics.BACKUP_SW_DURATION_SECONDS.labels(operation='storage_upload').observe(duration)
         return True
 
     if error_type:
         if USE_METRICS:
-            metrics.BACKUP_SW_S3_UPLOAD_FAILURE_TOTAL.labels(error_type=error_type).inc()
-            metrics.BACKUP_SW_LAST_FAILURE_TIMESTAMP.labels(operation="s3_upload").set(time.time())
+            metrics.BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type=error_type).inc()
+            metrics.BACKUP_SW_LAST_FAILURE_TIMESTAMP.labels(operation="storage_upload").set(time.time())
     print(f"❌ Cloud upload failed (error_type={error_type})")
     return False
 

@@ -195,13 +195,13 @@ All metrics are prefixed with `backup_`:
 - `backup_configuration_success_total` - Total successful configuration backups
 - `backup_configuration_failure_total{error_type}` - Total failed backups
   - `error_type`: `configuration_error`
-- `backup_s3_upload_success_total` - Total successful S3 uploads
-- `backup_s3_upload_failure_total{error_type}` - Total failed S3 uploads
+- `backup_storage_cloud_upload_success_total` - Total successful cloud uploads (AWS/Azure)
+- `backup_storage_cloud_upload_failure_total{error_type}` - Total failed cloud uploads
   - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
 
 #### Gauges
-- `backup_s3_last_file_size_bytes` - Size of last uploaded file (bytes)
-- `backup_s3_total_bytes_uploaded` - Total bytes uploaded (accumulated)
+- `backup_storage_cloud_last_file_size_bytes` - Size of last uploaded file (bytes)
+- `backup_storage_cloud_total_bytes_uploaded` - Total bytes uploaded (accumulated)
 - `backup_last_success_timestamp{operation}` - Unix timestamp of last success
   - `operation`: `connection`, `configuration`, `s3_upload`
 - `backup_last_failure_timestamp{operation}` - Unix timestamp of last failure
@@ -223,13 +223,13 @@ All metrics are prefixed with `backup_sw_`:
 - `backup_sw_configuration_success_total` - Total successful configuration backups
 - `backup_sw_configuration_failure_total{error_type}` - Total failed backups
   - `error_type`: `configuration_error`
-- `backup_sw_s3_upload_success_total` - Total successful S3 uploads
-- `backup_sw_s3_upload_failure_total{error_type}` - Total failed S3 uploads
+- `backup_sw_storage_cloud_upload_success_total` - Total successful cloud uploads (AWS/Azure)
+- `backup_sw_storage_cloud_upload_failure_total{error_type}` - Total failed cloud uploads
   - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
 
 #### Gauges
-- `backup_sw_s3_last_file_size_bytes` - Size of last uploaded file (bytes)
-- `backup_sw_s3_total_bytes_uploaded` - Total bytes uploaded (accumulated)
+- `backup_sw_storage_cloud_last_file_size_bytes` - Size of last uploaded file (bytes)
+- `backup_sw_storage_cloud_total_bytes_uploaded` - Total bytes uploaded (accumulated)
 - `backup_sw_last_success_timestamp{operation}` - Unix timestamp of last success
   - `operation`: `connection`, `configuration`, `s3_upload`
 - `backup_sw_last_failure_timestamp{operation}` - Unix timestamp of last failure
@@ -251,13 +251,13 @@ All metrics are prefixed with `backup_palo_`:
 - `backup_palo_configuration_success_total` - Total successful configuration backups
 - `backup_palo_configuration_failure_total{error_type}` - Total failed backups
   - `error_type`: `configuration_error`
-- `backup_palo_s3_upload_success_total` - Total successful cloud uploads
-- `backup_palo_s3_upload_failure_total{error_type}` - Total failed cloud uploads
+- `backup_palo_storage_cloud_upload_success_total` - Total successful cloud uploads
+- `backup_palo_storage_cloud_upload_failure_total{error_type}` - Total failed cloud uploads
   - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
 
 #### Gauges
-- `backup_palo_s3_last_file_size_bytes` - Size of last uploaded file (bytes)
-- `backup_palo_s3_total_bytes_uploaded` - Total bytes uploaded (accumulated)
+- `backup_palo_storage_cloud_last_file_size_bytes` - Size of last uploaded file (bytes)
+- `backup_palo_storage_cloud_total_bytes_uploaded` - Total bytes uploaded (accumulated)
 - `backup_palo_last_success_timestamp{operation}` - Unix timestamp of last success
   - `operation`: `connection`, `configuration`, `s3_upload`
 - `backup_palo_last_failure_timestamp{operation}` - Unix timestamp of last failure
