@@ -10,21 +10,21 @@ This platform consists of four main applications:
 - Connects to Fortigate firewalls via SSH
 - Retrieves full configuration using `show full-configuration` command
 - Saves configuration to local file (`fortigate_backup.conf`)
-- Optionally uploads to cloud storage (AWS S3, Azure Blob Storage)
+- Optionally uploads to cloud storage (AWS S3, Azure Blob Storage, GCP Cloud Storage)
 - Optionally sends metrics to Prometheus Pushgateway
 
 ### backup-sw (Juniper Switch Backup)
 - Connects to Juniper switches via SSH
 - Enters CLI mode and retrieves configuration using `show configuration | display set`
 - Saves configuration to local file (`juniper_backup.txt`)
-- Optionally uploads to cloud storage (AWS S3, Azure Blob Storage)
+- Optionally uploads to cloud storage (AWS S3, Azure Blob Storage, GCP Cloud Storage)
 - Optionally sends metrics to Prometheus Pushgateway
 
 ### backup-palo-alto (Palo Alto Firewall Backup)
 - Connects to Palo Alto firewalls via REST API (HTTPS)
 - Gets API key via keygen, then fetches running config with `show config running`
 - Saves configuration to local file (`palo_alto_backup.xml`)
-- Optionally uploads to cloud storage (AWS S3, Azure Blob Storage)
+- Optionally uploads to cloud storage (AWS S3, Azure Blob Storage, GCP Cloud Storage)
 - Optionally sends metrics to Prometheus Pushgateway
 
 ### blackjack-app (Blackjack Game)
@@ -37,7 +37,7 @@ This platform consists of four main applications:
 ## Features
 
 - ✅ **SSH-based backup** - Secure connection to network devices
-- ✅ **Cloud storage** - AWS S3 and Azure Blob Storage (GCP coming soon)
+- ✅ **Cloud storage** - AWS S3, Azure Blob Storage, and GCP Cloud Storage
 - ✅ **Metrics collection** - Prometheus metrics via Pushgateway (backup apps) and `/metrics` endpoint (blackjack)
 - ✅ **Modular architecture** - Separated concerns (metrics, cloud upload, main logic)
 - ✅ **Local storage** - Backup files stored in container when cloud is disabled
@@ -90,7 +90,9 @@ This platform consists of four main applications:
 - `AZURE_STORAGE_CONTAINER` - Blob container name (required if `azure=true`)
 
 **Cloud Storage (GCP Cloud Storage):**
-- *GCP support in progress*
+- `gcp` - Enable GCP upload (`true`/`false`, default: `false`)
+- `GCP_BUCKET_NAME` or `GCS_BUCKET_NAME` - GCS bucket name (required if `gcp=true`)
+- `GOOGLE_APPLICATION_CREDENTIALS` - Path to service account JSON key file inside the container (e.g. `/app/gcp-credentials.json`; required if `gcp=true`)
 
 **Metrics (Prometheus Pushgateway):**
 - `metrics-pushgw` - Enable metrics collection (`true`/`false`, default: `false`)
@@ -128,6 +130,21 @@ AZURE_STORAGE_CONTAINER=your_container_name
 
 When Azure is enabled:
 - Backup files are uploaded to the blob container with the same path format as S3 (e.g. `backup-fw/fortigate_backup_YYYY-MM-DD_HHMMSS.conf`)
+- Local backup file is **deleted** after successful upload
+
+### Enable GCP Cloud Storage
+
+Set the following environment variables:
+```bash
+gcp=true
+GCP_BUCKET_NAME=your_bucket_name
+GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+```
+
+Mount the GCP service account JSON key file at the path above (e.g. in Docker: `- ./cronjob.json:/app/gcp-credentials.json:ro`). In Kubernetes, create a Secret with the key file content and mount it as a volume.
+
+When GCP is enabled:
+- Backup files are uploaded to the GCS bucket with the same path format as S3/Azure (e.g. `backup-fw/fortigate_backup_YYYY-MM-DD_HHMMSS.conf`)
 - Local backup file is **deleted** after successful upload
 
 ### Enable Metrics Collection
@@ -177,7 +194,7 @@ In **Kubernetes**, you normally do **not** set these vars. Instead, you use a na
 
 ### Local Storage Only (No Cloud Upload)
 
-If both `aws=false` and `azure=false` (or not set):
+If `aws=false`, `azure=false`, and `gcp=false` (or not set):
 - Backup file is saved locally in the container
 - File path is logged: `📁 Path: /app/fortigate_backup.conf`, `/app/juniper_backup.txt`, or `/app/palo_alto_backup.xml`
 - File remains in container until next backup or pod restart
@@ -195,9 +212,9 @@ All metrics are prefixed with `backup_`:
 - `backup_configuration_success_total` - Total successful configuration backups
 - `backup_configuration_failure_total{error_type}` - Total failed backups
   - `error_type`: `configuration_error`
-- `backup_storage_cloud_upload_success_total` - Total successful cloud uploads (AWS/Azure)
+- `backup_storage_cloud_upload_success_total` - Total successful cloud uploads (AWS/Azure/GCP)
 - `backup_storage_cloud_upload_failure_total{error_type}` - Total failed cloud uploads
-  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
+  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`, `missing_gcp_config`, `gcp_client_error` (provider-specific labels only when that provider is enabled)
 
 #### Gauges
 - `backup_storage_cloud_last_file_size_bytes` - Size of last uploaded file (bytes)
@@ -223,9 +240,9 @@ All metrics are prefixed with `backup_sw_`:
 - `backup_sw_configuration_success_total` - Total successful configuration backups
 - `backup_sw_configuration_failure_total{error_type}` - Total failed backups
   - `error_type`: `configuration_error`
-- `backup_sw_storage_cloud_upload_success_total` - Total successful cloud uploads (AWS/Azure)
+- `backup_sw_storage_cloud_upload_success_total` - Total successful cloud uploads (AWS/Azure/GCP)
 - `backup_sw_storage_cloud_upload_failure_total{error_type}` - Total failed cloud uploads
-  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
+  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`, `missing_gcp_config`, `gcp_client_error` (provider-specific labels only when that provider is enabled)
 
 #### Gauges
 - `backup_sw_storage_cloud_last_file_size_bytes` - Size of last uploaded file (bytes)
@@ -253,7 +270,7 @@ All metrics are prefixed with `backup_palo_`:
   - `error_type`: `configuration_error`
 - `backup_palo_storage_cloud_upload_success_total` - Total successful cloud uploads
 - `backup_palo_storage_cloud_upload_failure_total{error_type}` - Total failed cloud uploads
-  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`
+  - `error_type`: `file_not_found`, `missing_bucket_name`, `s3_client_error`, `upload_error`, `unknown_error`, `missing_azure_config`, `azure_client_error`, `missing_gcp_config`, `gcp_client_error` (provider-specific labels only when that provider is enabled)
 
 #### Gauges
 - `backup_palo_storage_cloud_last_file_size_bytes` - Size of last uploaded file (bytes)
@@ -307,8 +324,11 @@ services:
       - USERNAME=your_username
       - PASSWORD=your_password
       - FW_NAME=your_fw_name
-      - aws=true
+      - aws=false
       - azure=false
+      - gcp=true
+      - GCP_BUCKET_NAME=your_bucket_name
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
       - metrics-pushgw=true
       - AWS_ACCESS_KEY_ID=your_aws_access_key_id
       - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
@@ -323,6 +343,7 @@ services:
       - PUSHGATEWAY_INSTANCE=your_instance_name
     volumes:
       - backup-fw-backups:/app
+      - ./cronjob.json:/app/gcp-credentials.json:ro
     depends_on:
       - pushgateway
     restart: no
@@ -337,8 +358,11 @@ services:
       - USERNAME=your_username
       - PASSWORD=your_password
       - SW_NAME=your_sw_name
-      - aws=true
+      - aws=false
       - azure=false
+      - gcp=true
+      - GCP_BUCKET_NAME=your_bucket_name
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
       - metrics-pushgw=true
       - AWS_ACCESS_KEY_ID=your_aws_access_key_id
       - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
@@ -353,6 +377,7 @@ services:
       - PUSHGATEWAY_INSTANCE=your_instance_name
     volumes:
       - backup-sw-backups:/app
+      - ./cronjob.json:/app/gcp-credentials.json:ro
     depends_on:
       - pushgateway
     restart: no
@@ -367,8 +392,11 @@ services:
       - USERNAME=your_username
       - PASSWORD=your_password
       - VERIFY_SSL=false
-      - aws=true
+      - aws=false
       - azure=false
+      - gcp=true
+      - GCP_BUCKET_NAME=your_bucket_name
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
       - metrics-pushgw=true
       - AWS_ACCESS_KEY_ID=your_aws_access_key_id
       - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
@@ -383,6 +411,7 @@ services:
       - PUSHGATEWAY_INSTANCE=your_instance_name
     volumes:
       - backup-palo-alto-backups:/app
+      - ./cronjob.json:/app/gcp-credentials.json:ro
     depends_on:
       - pushgateway
     restart: no
@@ -414,19 +443,19 @@ The applications follow a modular architecture:
 ```
 backup-fw/
 ├── fortigate_backup.py    # Main script (SSH connection, config retrieval)
-├── cloud_upload.py        # Cloud storage logic (AWS/Azure)
+├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
 └── Dockerfile
 
 backup-sw/
 ├── juniper-sw.py          # Main script (SSH connection, config retrieval)
-├── cloud_upload.py        # Cloud storage logic (AWS/Azure)
+├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
 └── Dockerfile
 
 backup-palo-alto/
 ├── palo_alto_backup.py    # Main script (REST API, config retrieval)
-├── cloud_upload.py        # Cloud storage logic (AWS/Azure)
+├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
 └── Dockerfile
 
@@ -482,6 +511,7 @@ The game features:
 - All metrics support accumulation across multiple runs via Pushgateway
 - Cloud object names include date/time (e.g. `backup-fw/fortigate_backup_2026-02-07_123456.conf`, `backup-palo-alto/palo_alto_backup_2026-02-07_123456.xml`)
 - Azure Blob Storage uses the same env vars across all backup apps: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_CONTAINER`
+- GCP Cloud Storage requires a service account JSON key file; set `GOOGLE_APPLICATION_CREDENTIALS` to the path of that file inside the container (e.g. mount it as a volume). Use `GCP_BUCKET_NAME` or `GCS_BUCKET_NAME` for the bucket.
 
 **Blackjack App:**
 - Simple Flask web application - no configuration needed

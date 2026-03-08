@@ -28,7 +28,7 @@ def record_upload_success(file_size: float) -> None:
     BACKUP_PALO_STORAGE_CLOUD_TOTAL_BYTES_UPLOADED.set(_total_bytes_uploaded_accumulator)
 
 
-def init_failure_gauges(aws_enabled: bool = False, azure_enabled: bool = False) -> None:
+def init_failure_gauges(aws_enabled: bool = False, azure_enabled: bool = False, gcp_enabled: bool = False) -> None:
     """Initialize failure metrics to 0. Only inits storage cloud error types for the enabled provider(s)."""
     BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type='authentication_error').inc(0)
     BACKUP_PALO_CONNECTION_FAILURE_TOTAL.labels(error_type='api_error').inc(0)
@@ -44,6 +44,9 @@ def init_failure_gauges(aws_enabled: bool = False, azure_enabled: bool = False) 
     if azure_enabled:
         BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_azure_config').inc(0)
         BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='azure_client_error').inc(0)
+    if gcp_enabled:
+        BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_gcp_config').inc(0)
+        BACKUP_PALO_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='gcp_client_error').inc(0)
 
 
 def push_metrics(pushgateway_addr: str, job: str, instance: str) -> None:
