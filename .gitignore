@@ -188,3 +188,5 @@ docker-compose.yml
 
 #  ignore backup-fw-backups and backup-sw-backups volumes
 backups-files/
+test.yml
+values.yaml
