@@ -137,7 +137,7 @@ def run_backup_once() -> bool:
     overall_start_time = time.time()
 
     if USE_METRICS:
-        metrics.init_failure_gauges()
+        metrics.init_failure_gauges(aws_enabled=cloud_upload.USE_AWS, azure_enabled=cloud_upload.USE_AZURE)
 
     config_success = get_full_configuration()
     if config_success:
