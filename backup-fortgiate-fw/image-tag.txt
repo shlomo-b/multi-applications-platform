@@ -1,1 +1,1 @@
-fortigate-v1.4.1
+fortigate-v1.4.2

@@ -28,19 +28,22 @@ def record_upload_success(file_size: float) -> None:
     BACKUP_SW_STORAGE_CLOUD_TOTAL_BYTES_UPLOADED.set(_total_bytes_uploaded_accumulator)
 
 
-def init_failure_gauges() -> None:
-    """Initialize all failure metrics to 0 so they are always visible in Pushgateway."""
+def init_failure_gauges(aws_enabled: bool = False, azure_enabled: bool = False) -> None:
+    """Initialize failure metrics to 0. Only inits storage cloud error types for the enabled provider(s)."""
     BACKUP_SW_CONNECTION_FAILURE_TOTAL.labels(error_type='authentication_error').inc(0)
     BACKUP_SW_CONNECTION_FAILURE_TOTAL.labels(error_type='ssh_error').inc(0)
     BACKUP_SW_CONNECTION_FAILURE_TOTAL.labels(error_type='connection_error').inc(0)
     BACKUP_SW_CONFIGURATION_FAILURE_TOTAL.labels(error_type='configuration_error').inc(0)
+    # Common (any cloud)
     BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='file_not_found').inc(0)
-    BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_bucket_name').inc(0)
-    BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='s3_client_error').inc(0)
     BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='upload_error').inc(0)
     BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='unknown_error').inc(0)
-    BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_azure_config').inc(0)
-    BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='azure_client_error').inc(0)
+    if aws_enabled:
+        BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_bucket_name').inc(0)
+        BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='s3_client_error').inc(0)
+    if azure_enabled:
+        BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='missing_azure_config').inc(0)
+        BACKUP_SW_STORAGE_CLOUD_UPLOAD_FAILURE_TOTAL.labels(error_type='azure_client_error').inc(0)
 
 
 def push_metrics(pushgateway_addr: str, job: str, instance: str) -> None:
