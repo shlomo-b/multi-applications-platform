@@ -190,3 +190,4 @@ docker-compose.yml
 backups-files/
 test.yml
 values.yaml
+cronjob.json

@@ -1,21 +1,24 @@
-"""Upload backup file to AWS S3 or Azure Blob Storage."""
+"""Upload backup file to AWS S3, Azure Blob Storage, or GCP Cloud Storage."""
 import os
 import time
 from typing import Optional, Tuple
 
 USE_AWS = os.environ.get('aws', 'false').lower() == 'true'
 USE_AZURE = os.environ.get('azure', 'false').lower() == 'true'
+USE_GCP = os.environ.get('gcp', 'false').lower() == 'true'
 
 if USE_AWS:
     import boto3
 if USE_AZURE:
     from azure.identity import ClientSecretCredential
     from azure.storage.blob import BlobServiceClient
+if USE_GCP:
+    from google.cloud import storage
 
 
 def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Optional[str]]:
     """Upload backup to cloud. Returns (success, file_size, error_type). On success, deletes local file."""
-    if not USE_AWS and not USE_AZURE:
+    if not USE_AWS and not USE_AZURE and not USE_GCP:
         return False, 0.0, None
     if not os.path.exists(backup_file):
         return False, 0.0, 'file_not_found'
@@ -69,8 +72,31 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             print(f"❌ Azure Blob upload error: {e}")
             return False, 0.0, error_type
 
+    if USE_GCP:
+        bucket_name = os.environ.get('GCP_BUCKET_NAME') or os.environ.get('GCS_BUCKET_NAME')
+        creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        if not bucket_name:
+            return False, 0.0, 'missing_gcp_config'
+        if not creds_path or not os.path.isfile(creds_path):
+            return False, 0.0, 'missing_gcp_config'
+        try:
+            client = storage.Client.from_service_account_json(creds_path)
+            bucket = client.bucket(bucket_name)
+            blob = bucket.blob(object_name)
+            blob.upload_from_filename(backup_file)
+            print(f"✅ Backup uploaded to GCP bucket: {bucket_name}")
+            try:
+                os.remove(backup_file)
+            except OSError:
+                pass
+            return True, float(file_size), None
+        except Exception as e:
+            error_type = 'gcp_client_error' if 'google' in str(e).lower() or 'credentials' in str(e).lower() else 'upload_error'
+            print(f"❌ GCP upload error: {e}")
+            return False, 0.0, error_type
+
     return False, 0.0, None
 
 
 def is_cloud_enabled() -> bool:
-    return USE_AWS or USE_AZURE
+    return USE_AWS or USE_AZURE or USE_GCP
