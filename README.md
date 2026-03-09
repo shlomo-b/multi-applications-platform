@@ -92,7 +92,7 @@ This platform consists of four main applications:
 **Cloud Storage (GCP Cloud Storage):**
 - `gcp` - Enable GCP upload (`true`/`false`, default: `false`)
 - `GCP_BUCKET_NAME` or `GCS_BUCKET_NAME` - GCS bucket name (required if `gcp=true`)
-- `GOOGLE_APPLICATION_CREDENTIALS` - Path to service account JSON key file inside the container (e.g. `/app/gcp-credentials.json`; required if `gcp=true`)
+- `GCP_APPLICATION_CREDENTIALS` - Either **path to a JSON key file** inside the container (e.g. `/app/gcp-credentials.json`) **or** the **raw JSON content** itself. If not set, falls back to `GOOGLE_APPLICATION_CREDENTIALS`.
 
 **Metrics (Prometheus Pushgateway):**
 - `metrics-pushgw` - Enable metrics collection (`true`/`false`, default: `false`)
@@ -134,16 +134,33 @@ When Azure is enabled:
 
 ### Enable GCP Cloud Storage
 
-Set the following environment variables:
+You can authenticate to GCP in **two ways**, using the same env var:
+
+**Option 1 – File-based (volume/Secret volume, value is a path):**
+
+Set:
 ```bash
 gcp=true
 GCP_BUCKET_NAME=your_bucket_name
-GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+GCP_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
 ```
 
-Mount the GCP service account JSON key file at the path above (e.g. in Docker: `- ./cronjob.json:/app/gcp-credentials.json:ro`). In Kubernetes, create a Secret with the key file content and mount it as a volume.
+Then mount the GCP service account JSON key file at that path, for example:
+- Docker: `- ./cronjob.json:/app/gcp-credentials.json:ro`
+- Kubernetes: create a Secret with the JSON file and mount it as a volume.
 
-When GCP is enabled:
+**Option 2 – Env-only (value is JSON, no volume):**
+
+Set:
+```bash
+gcp=true
+GCP_BUCKET_NAME=your_bucket_name
+GCP_APPLICATION_CREDENTIALS='{"type": "...", "project_id": "...", ...}'  # full JSON as a single env var
+```
+
+In Kubernetes, inject `GCP_APPLICATION_CREDENTIALS` from a Secret via `env.valueFrom.secretKeyRef`. In this mode, no file/volume is needed; the app loads the JSON from the env var and uses `from_service_account_info`.
+
+When GCP is enabled (either option):
 - Backup files are uploaded to the GCS bucket with the same path format as S3/Azure (e.g. `backup-fw/fortigate_backup_YYYY-MM-DD_HHMMSS.conf`)
 - Local backup file is **deleted** after successful upload
 
@@ -328,7 +345,7 @@ services:
       - azure=false
       - gcp=true
       - GCP_BUCKET_NAME=your_bucket_name
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+      - GCP_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
       - metrics-pushgw=true
       - AWS_ACCESS_KEY_ID=your_aws_access_key_id
       - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
@@ -362,7 +379,7 @@ services:
       - azure=false
       - gcp=true
       - GCP_BUCKET_NAME=your_bucket_name
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+      - GCP_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
       - metrics-pushgw=true
       - AWS_ACCESS_KEY_ID=your_aws_access_key_id
       - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
@@ -396,7 +413,7 @@ services:
       - azure=false
       - gcp=true
       - GCP_BUCKET_NAME=your_bucket_name
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+      - GCP_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
       - metrics-pushgw=true
       - AWS_ACCESS_KEY_ID=your_aws_access_key_id
       - AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
@@ -511,7 +528,7 @@ The game features:
 - All metrics support accumulation across multiple runs via Pushgateway
 - Cloud object names include date/time (e.g. `backup-fw/fortigate_backup_2026-02-07_123456.conf`, `backup-palo-alto/palo_alto_backup_2026-02-07_123456.xml`)
 - Azure Blob Storage uses the same env vars across all backup apps: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_CONTAINER`
-- GCP Cloud Storage requires a service account JSON key file; set `GOOGLE_APPLICATION_CREDENTIALS` to the path of that file inside the container (e.g. mount it as a volume). Use `GCP_BUCKET_NAME` or `GCS_BUCKET_NAME` for the bucket.
+- GCP Cloud Storage requires a service account JSON key file; set `GCP_APPLICATION_CREDENTIALS` (or `GOOGLE_APPLICATION_CREDENTIALS`) to the path of that file inside the container (e.g. mount it as a volume). Use `GCP_BUCKET_NAME` or `GCS_BUCKET_NAME` for the bucket.
 
 **Blackjack App:**
 - Simple Flask web application - no configuration needed
