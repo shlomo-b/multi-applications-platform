@@ -1,5 +1,6 @@
 """Upload backup file to AWS S3, Azure Blob Storage, or GCP Cloud Storage."""
 import os
+import json
 import time
 from typing import Optional, Tuple
 
@@ -74,13 +75,31 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
 
     if USE_GCP:
         bucket_name = os.environ.get('GCP_BUCKET_NAME') or os.environ.get('GCS_BUCKET_NAME')
-        creds_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
         if not bucket_name:
             return False, 0.0, 'missing_gcp_config'
-        if not creds_path or not os.path.isfile(creds_path):
+
+        creds_value = os.environ.get('GCP_APPLICATION_CREDENTIALS') or os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        if not creds_value:
             return False, 0.0, 'missing_gcp_config'
+
+        # First, treat value as a path to a JSON file (Docker / volume / Secret volume)
+        client = None
+        if os.path.isfile(creds_value):
+            try:
+                client = storage.Client.from_service_account_json(creds_value)
+            except Exception as e:
+                print(f"❌ GCP credentials (file) error: {e}")
+                return False, 0.0, 'gcp_client_error'
+        else:
+            # Otherwise, treat value as raw JSON content from env (e.g. K8s Secret -> env)
+            try:
+                info = json.loads(creds_value)
+                client = storage.Client.from_service_account_info(info)
+            except Exception as e:
+                print(f"❌ GCP credentials (JSON env) error: {e}")
+                return False, 0.0, 'gcp_client_error'
+
         try:
-            client = storage.Client.from_service_account_json(creds_path)
             bucket = client.bucket(bucket_name)
             blob = bucket.blob(object_name)
             blob.upload_from_filename(backup_file)
