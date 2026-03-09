@@ -11,7 +11,7 @@ USE_GCP = os.environ.get('gcp', 'false').lower() == 'true'
 if USE_AWS:
     import boto3
 if USE_AZURE:
-    from azure.identity import ClientSecretCredential
+    from azure.identity import ClientSecretCredential, DefaultAzureCredential
     from azure.storage.blob import BlobServiceClient
 if USE_GCP:
     from google.cloud import storage
@@ -40,11 +40,17 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
         if not bucket:
             return False, 0.0, 'missing_bucket_name'
         try:
-            s3 = boto3.client(
-                's3',
-                aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-            )
+            access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+            secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+            if access_key and secret_key:
+                s3 = boto3.client(
+                    's3',
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                )
+            else:
+                # Fall back to default credentials (e.g. IAM role / IRSA / env / shared config)
+                s3 = boto3.client('s3')
             s3.upload_file(backup_file, bucket, object_name)
             print(f"✅ Backup file: {backup_file}, successfully uploaded to AWS S3 bucket: {bucket}")
             try:
@@ -63,14 +69,18 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
         tenant_id = os.environ.get('AZURE_TENANT_ID')
         client_id = os.environ.get('AZURE_CLIENT_ID')
         client_secret = os.environ.get('AZURE_CLIENT_SECRET')
-        if not all([account, container_name, tenant_id, client_id, client_secret]):
+        if not account or not container_name:
             return False, 0.0, 'missing_azure_config'
         try:
-            credential = ClientSecretCredential(
-                tenant_id=tenant_id,
-                client_id=client_id,
-                client_secret=client_secret,
-            )
+            if tenant_id and client_id and client_secret:
+                credential = ClientSecretCredential(
+                    tenant_id=tenant_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+            else:
+                # Fall back to default Azure credential (Managed Identity / federated SA / env)
+                credential = DefaultAzureCredential()
             account_url = f"https://{account}.blob.core.windows.net"
             blob_service = BlobServiceClient(account_url=account_url, credential=credential)
             container_client = blob_service.get_container_client(container_name)
@@ -94,24 +104,30 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             return False, 0.0, 'missing_gcp_config'
 
         creds_value = os.environ.get('GCP_APPLICATION_CREDENTIALS') or os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-        if not creds_value:
-            return False, 0.0, 'missing_gcp_config'
 
         client = None
-        # First, treat value as a path to a JSON file (Docker / volume / Secret volume)
-        if os.path.isfile(creds_value):
-            try:
-                client = storage.Client.from_service_account_json(creds_value)
-            except Exception as e:
-                print(f"❌ GCP credentials (file) error: {e}")
-                return False, 0.0, 'gcp_client_error'
+        if creds_value:
+            # First, treat value as a path to a JSON file (Docker / volume / Secret volume)
+            if os.path.isfile(creds_value):
+                try:
+                    client = storage.Client.from_service_account_json(creds_value)
+                except Exception as e:
+                    print(f"❌ GCP credentials (file) error: {e}")
+                    return False, 0.0, 'gcp_client_error'
+            else:
+                # Otherwise, treat value as raw JSON content from env (e.g. K8s Secret -> env)
+                try:
+                    info = json.loads(creds_value)
+                    client = storage.Client.from_service_account_info(info)
+                except Exception as e:
+                    print(f"❌ GCP credentials (JSON env) error: {e}")
+                    return False, 0.0, 'gcp_client_error'
         else:
-            # Otherwise, treat value as raw JSON content from env (e.g. K8s Secret -> env)
+            # Fall back to default credentials (e.g. GKE Workload Identity / node SA)
             try:
-                info = json.loads(creds_value)
-                client = storage.Client.from_service_account_info(info)
+                client = storage.Client()
             except Exception as e:
-                print(f"❌ GCP credentials (JSON env) error: {e}")
+                print(f"❌ GCP default credentials error: {e}")
                 return False, 0.0, 'gcp_client_error'
 
         try:
