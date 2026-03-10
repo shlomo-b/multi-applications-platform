@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import select
@@ -20,6 +21,14 @@ USE_METRICS = os.environ.get("metrics-pushgw", "false").lower() == "true"
 PUSHGATEWAY_ADDR = os.environ.get("PUSHGATEWAY_ADDR", "pushgateway:9091")
 PUSHGATEWAY_JOB = os.environ.get("PUSHGATEWAY_JOB", "backup-sw-juniper")
 PUSHGATEWAY_INSTANCE = os.environ.get("PUSHGATEWAY_INSTANCE", HOST or "unknown")
+
+def configure_logging() -> None:
+    level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    if level >= logging.INFO:
+        for lib in ("urllib3", "requests", "boto3", "botocore", "azure", "google"):
+            logging.getLogger(lib).setLevel(logging.WARNING)
 
 
 def get_full_configuration():
@@ -168,6 +177,7 @@ def run_backup_once() -> bool:
 
 
 if __name__ == "__main__":
+    configure_logging()
     cronjob_enabled = os.environ.get("CRONJOB_ENABLED", "false").lower() == "true"
     if cronjob_enabled:
         from cronjob import run_cron_loop

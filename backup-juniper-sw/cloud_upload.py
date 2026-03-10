@@ -1,6 +1,7 @@
 """Upload backup file to AWS S3, Azure Blob Storage, or GCP Cloud Storage."""
 import os
 import json
+import logging
 import time
 from typing import Optional, Tuple
 
@@ -15,6 +16,8 @@ if USE_AZURE:
     from azure.storage.blob import BlobServiceClient
 if USE_GCP:
     from google.cloud import storage
+
+logger = logging.getLogger(__name__)
 
 
 def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Optional[str]]:
@@ -52,7 +55,7 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
                 # Fall back to default credentials (e.g. IAM role / IRSA / env / shared config)
                 s3 = boto3.client('s3')
             s3.upload_file(backup_file, bucket, object_name)
-            print(f"✅ Backup file: {backup_file}, successfully uploaded to AWS S3 bucket: {bucket}")
+            logger.info("Backup file %s uploaded to AWS S3 bucket: %s", backup_file, bucket)
             try:
                 os.remove(backup_file)
             except OSError:
@@ -60,7 +63,7 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             return True, float(file_size), None
         except Exception as e:
             error_type = 's3_client_error' if 'client' in str(e).lower() else 'upload_error'
-            print(f"❌ Error during AWS S3 upload: {e}")
+            logger.exception("Error during AWS S3 upload: %s", e)
             return False, 0.0, error_type
 
     if USE_AZURE:
@@ -87,7 +90,7 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             blob_client = container_client.get_blob_client(object_name)
             with open(backup_file, 'rb') as f:
                 blob_client.upload_blob(f, overwrite=True)
-            print(f"✅ Backup file: {backup_file}, successfully uploaded to Azure Blob container: {container_name}")
+            logger.info("Backup file %s uploaded to Azure Blob container: %s", backup_file, container_name)
             try:
                 os.remove(backup_file)
             except OSError:
@@ -95,7 +98,7 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             return True, float(file_size), None
         except Exception as e:
             error_type = 'azure_client_error' if 'credential' in str(e).lower() or 'blob' in str(e).lower() else 'upload_error'
-            print(f"❌ Error during Azure Blob upload: {e}")
+            logger.exception("Error during Azure Blob upload: %s", e)
             return False, 0.0, error_type
 
     if USE_GCP:
@@ -112,7 +115,7 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
                 try:
                     client = storage.Client.from_service_account_json(creds_value)
                 except Exception as e:
-                    print(f"❌ GCP credentials (file) error: {e}")
+                    logger.exception("GCP credentials (file) error: %s", e)
                     return False, 0.0, 'gcp_client_error'
             else:
                 # Otherwise, treat value as raw JSON content from env (e.g. K8s Secret -> env)
@@ -120,21 +123,21 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
                     info = json.loads(creds_value)
                     client = storage.Client.from_service_account_info(info)
                 except Exception as e:
-                    print(f"❌ GCP credentials (JSON env) error: {e}")
+                    logger.exception("GCP credentials (JSON env) error: %s", e)
                     return False, 0.0, 'gcp_client_error'
         else:
             # Fall back to default credentials (e.g. GKE Workload Identity / node SA)
             try:
                 client = storage.Client()
             except Exception as e:
-                print(f"❌ GCP default credentials error: {e}")
+                logger.exception("GCP default credentials error: %s", e)
                 return False, 0.0, 'gcp_client_error'
 
         try:
             bucket = client.bucket(bucket_name)
             blob = bucket.blob(object_name)
             blob.upload_from_filename(backup_file)
-            print(f"✅ Backup uploaded to GCP bucket: {bucket_name}")
+            logger.info("Backup uploaded to GCP bucket: %s", bucket_name)
             try:
                 os.remove(backup_file)
             except OSError:
@@ -142,7 +145,7 @@ def upload_backup(backup_file: str, folder_prefix: str) -> Tuple[bool, float, Op
             return True, float(file_size), None
         except Exception as e:
             error_type = 'gcp_client_error' if 'google' in str(e).lower() or 'credentials' in str(e).lower() else 'upload_error'
-            print(f"❌ GCP upload error: {e}")
+            logger.exception("GCP upload error: %s", e)
             return False, 0.0, error_type
 
     return False, 0.0, None

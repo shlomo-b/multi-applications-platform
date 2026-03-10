@@ -99,6 +99,7 @@ This platform consists of four main applications:
 - `PUSHGATEWAY_ADDR` - Pushgateway address (default: `pushgateway:9091`)
 - `PUSHGATEWAY_JOB` - Job name for metrics (e.g. `backup-fw`, `backup-sw`, `backup-palo-alto`)
 - `PUSHGATEWAY_INSTANCE` - Instance identifier (default: `HOST` or `unknown`)
+- `LOG_LEVEL` - Logging level for the backup apps (`DEBUG`, `INFO`, `WARNING`, `ERROR`, default: `INFO`)
 
 ## Usage
 
