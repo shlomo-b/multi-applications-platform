@@ -1,1 +1,1 @@
-junipersw-v1.6.0
+junipersw-v1.7.0
