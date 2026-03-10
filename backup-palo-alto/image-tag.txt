@@ -1,1 +1,1 @@
-paloalto-v1.3.0
+paloalto-v1.4.0
