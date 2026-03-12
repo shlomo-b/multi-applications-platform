@@ -1,10 +1,10 @@
 # Multi-Applications Platform
 
-A platform for automated backup of network devices (Fortigate, Juniper, Palo Alto) and a simple web-based Blackjack game, all with optional metrics collection.
+A platform for automated backup of network devices (Fortigate, Juniper, Palo Alto) with optional metrics collection.
 
 ## Overview
 
-This platform consists of four main applications:
+This platform consists of three main applications:
 
 ### backup-fw (Fortigate Firewall Backup)
 - Connects to Fortigate firewalls via SSH
@@ -27,21 +27,13 @@ This platform consists of four main applications:
 - Optionally uploads to cloud storage (AWS S3, Azure Blob Storage, GCP Cloud Storage)
 - Optionally sends metrics to Prometheus Pushgateway
 
-### blackjack-app (Blackjack Game)
-- Simple web-based Blackjack card game
-- Flask web server running on port 80
-- Interactive HTML/JavaScript game interface
-- Prometheus metrics exposed at `/metrics` endpoint
-- Tracks games played, site visits, HTTP requests, and system metrics
-
 ## Features
 
 - ✅ **SSH-based backup** - Secure connection to network devices
 - ✅ **Cloud storage** - AWS S3, Azure Blob Storage, and GCP Cloud Storage
-- ✅ **Metrics collection** - Prometheus metrics via Pushgateway (backup apps) and `/metrics` endpoint (blackjack)
+- ✅ **Metrics collection** - Prometheus metrics via Pushgateway (backup apps)
 - ✅ **Modular architecture** - Separated concerns (metrics, cloud upload, main logic)
 - ✅ **Local storage** - Backup files stored in container when cloud is disabled
-- ✅ **Web-based game** - Simple Blackjack game with interactive UI
 
 ## Configuration
 
@@ -69,9 +61,6 @@ This platform consists of four main applications:
 - `USERNAME` - API username
 - `PASSWORD` - API password
 - `VERIFY_SSL` - Verify HTTPS certificate (`true`/`false`, default: `false` for self-signed)
-
-**For blackjack-app:**
-- No environment variables required - runs on port 80 by default
 
 #### Optional Features
 
@@ -303,29 +292,6 @@ All metrics are prefixed with `backup_palo_`:
   - `operation`: `configuration`, `s3_upload`, `total`
   - Buckets: `[1, 5, 10, 30, 60, 120, 300, 600]`
 
-### blackjack-app Metrics
-
-All metrics are exposed at `/metrics` endpoint:
-
-#### Counters
-- `games_played` - Total number of Blackjack games played
-- `site_visits` - Total number of visits to the Blackjack site
-- `http_requests_total{method, endpoint, status_code}` - Total HTTP requests
-  - `method`: HTTP method (GET, POST, etc.)
-  - `endpoint`: Request path (/, /metrics, /presentation, etc.)
-  - `status_code`: HTTP status code (200, 404, etc.)
-
-#### Gauges
-- `cpu_usage_percent` - Current CPU usage percentage
-- `memory_usage_bytes` - Current memory usage in bytes
-- `network_io_bytes{direction}` - Network I/O counters
-  - `direction`: `in` (bytes received) or `out` (bytes sent)
-
-#### Histograms
-- `http_request_duration_seconds{method, endpoint}` - HTTP request duration (seconds)
-  - `method`: HTTP method (GET, POST, etc.)
-  - `endpoint`: Request path (/, /metrics, /presentation, etc.)
-
 ## Docker Compose
 
 Example `docker-compose.yml`:
@@ -434,14 +400,6 @@ services:
       - pushgateway
     restart: no
 
-  blackjack-app:
-    build:
-      context: .
-      dockerfile: blackjack-app/Dockerfile
-    ports:
-      - "8080:80"
-    restart: unless-stopped
-
   pushgateway:
     image: prom/pushgateway:v1.8.0
     ports:
@@ -476,49 +434,13 @@ backup-palo-alto/
 ├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
 └── Dockerfile
-
-blackjack-app/
-├── main.py                # Flask web server and metrics
-├── blackjack.html         # Game UI and JavaScript
-├── presentation.html      # Presentation page (if exists)
-└── Dockerfile
 ```
-
-## Usage Examples
-
-### Running Blackjack App
-
-The blackjack app runs as a simple Flask web server:
-
-```bash
-# Build and run with Docker Compose
-docker-compose up blackjack-app
-
-# Or build manually
-cd blackjack-app
-docker build -t blackjack-app .
-docker run -p 8080:80 blackjack-app
-```
-
-Access the game at `http://localhost:8080`:
-- Main game: `http://localhost:8080/`
-- Presentation page: `http://localhost:8080/presentation`
-- Metrics endpoint: `http://localhost:8080/metrics`
-
-The game features:
-- Username input (minimum 2 characters)
-- Interactive card game with hit/stand options
-- Automatic dealer play
-- Win/loss/draw detection
 
 ## Exit Codes
 
 **Backup applications (backup-fw, backup-sw, backup-palo-alto):**
 - `0` - Success (configuration retrieved and cloud upload succeeded if enabled)
 - `1` - Failure (connection error, configuration error, or cloud upload failure)
-
-**Blackjack app:**
-- Runs continuously as a web server (no exit codes)
 
 ## Notes
 
@@ -530,9 +452,3 @@ The game features:
 - Cloud object names include date/time (e.g. `backup-fw/fortigate_backup_2026-02-07_123456.conf`, `backup-palo-alto/palo_alto_backup_2026-02-07_123456.xml`)
 - Azure Blob Storage uses the same env vars across all backup apps: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_CONTAINER`
 - GCP Cloud Storage requires a service account JSON key file; set `GCP_APPLICATION_CREDENTIALS` (or `GOOGLE_APPLICATION_CREDENTIALS`) to the path of that file inside the container (e.g. mount it as a volume). Use `GCP_BUCKET_NAME` or `GCS_BUCKET_NAME` for the bucket.
-
-**Blackjack App:**
-- Simple Flask web application - no configuration needed
-- Metrics are always enabled and exposed at `/metrics` endpoint
-- System metrics (CPU, memory, network) are updated on each `/metrics` request
-- Game metrics increment automatically when users play or visit the site
