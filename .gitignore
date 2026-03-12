@@ -191,3 +191,5 @@ backups-files/
 test.yml
 values.yaml
 cronjob.json
+blackjack-app/
+/.github/workflows/blackjack.yml
