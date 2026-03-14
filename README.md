@@ -35,6 +35,36 @@ This platform consists of three main applications:
 - ✅ **Modular architecture** - Separated concerns (metrics, cloud upload, main logic)
 - ✅ **Local storage** - Backup files stored in container when cloud is disabled
 
+## Optional: Create your own .env files
+
+**The repository does not include `.env` files** (they are in `.gitignore` for security). To run the backup services with your own credentials, create the following env files:
+
+| File | Used by |
+|------|--------|
+| `.env.fortigate` | Fortigate backup service |
+| `.env.juniper` | Juniper backup service |
+| `.env.palo.alto` | Palo Alto backup service |
+
+Create one file per service you use. Each file should contain the **device/backup target** variables (e.g. `HOST`, `PORT`, `USERNAME`, `PASSWORD`, and `FW_NAME` / `SW_NAME` / `VERIFY_SSL` as applicable) plus any **cloud storage** variables (AWS, Azure, GCP) you need. Use the variable names and structure described in the [Environment Variables](#environment-variables) section below.
+
+Example minimal `.env.fortigate` (for the Fortigate backup service):
+
+```bash
+# Fortigate device
+HOST=your_fortigate_host
+PORT=SSH port (default: 22)
+USERNAME=admin
+PASSWORD=your_password
+FW_NAME=fortigate
+
+# Optional: cloud (only if you enable aws/azure/gcp in docker-compose)
+# AWS_ACCESS_KEY_ID=...
+# GCP_BUCKET_NAME=...
+# GCP_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+```
+
+If you run Docker Compose, each service expects its env file to exist; create only the files for the services you want to use.
+
 ## Configuration
 
 ### Environment Variables
@@ -293,6 +323,8 @@ All metrics are prefixed with `backup_palo_`:
   - Buckets: `[1, 5, 10, 30, 60, 120, 300, 600]`
 
 ## Docker Compose
+
+To run the backup services, create the [.env files](#optional-create-your-own-env-files) (`.env.fortigate`, `.env.juniper`, `.env.palo.alto`) for the services you use — they are not in the repo.
 
 Example `docker-compose.yml`:
 
