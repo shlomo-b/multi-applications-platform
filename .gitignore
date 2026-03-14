@@ -193,3 +193,6 @@ values.yaml
 cronjob.json
 blackjack-app/
 /.github/workflows/blackjack.yml
+.env.fortigate
+.env.juniper
+.env.palo.alto
