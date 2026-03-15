@@ -449,22 +449,31 @@ volumes:
 The applications follow a modular architecture:
 
 ```
-backup-fw/
+backup-fortgiate-fw/
 ├── fortigate_backup.py    # Main script (SSH connection, config retrieval)
+├── cronjob.py             # Internal scheduler (Docker only; optional)
 ├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
+├── requirements.txt       # Python dependencies
+├── image-tag.txt          # Image tag for CI/build
 └── Dockerfile
 
-backup-sw/
+backup-juniper-sw/
 ├── juniper-sw.py          # Main script (SSH connection, config retrieval)
+├── cronjob.py             # Internal scheduler (Docker only; optional)
 ├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
+├── requirements.txt       # Python dependencies
+├── image-tag.txt          # Image tag for CI/build
 └── Dockerfile
 
 backup-palo-alto/
 ├── palo_alto_backup.py    # Main script (REST API, config retrieval)
+├── cronjob.py             # Internal scheduler (Docker only; optional)
 ├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
+├── requirements.txt       # Python dependencies
+├── image-tag.txt          # Image tag for CI/build
 └── Dockerfile
 ```
 
