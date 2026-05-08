@@ -196,3 +196,5 @@ blackjack-app/
 .env.fortigate
 .env.juniper
 .env.palo.alto
+secret.yaml
+cron.txt
