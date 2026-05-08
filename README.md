@@ -184,6 +184,13 @@ When GCP is enabled (either option):
 - Backup files are uploaded to the GCS bucket with the same path format as S3/Azure (e.g. `backup-fw/fortigate_backup_YYYY-MM-DD_HHMMSS.conf`)
 - Local backup file is **deleted** after successful upload
 
+### Multi-cloud (parallel upload)
+
+You can set **more than one** of `aws`, `azure`, and `gcp` to `true` at the same time. The backup is uploaded to **every enabled provider in parallel** (same object path in each cloud). Configure the environment variables for each provider you enable.
+
+- **All enabled uploads must succeed** before the local backup file is deleted. If any provider fails, the file is kept and the job reports failure (metrics use the first error type returned).
+- **Single cloud** still works: set only `aws=true`, or only `azure=true`, or only `gcp=true`.
+
 ### Enable Metrics Collection
 
 Set the following environment variables:
