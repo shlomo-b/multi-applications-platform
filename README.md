@@ -125,10 +125,10 @@ If you run Docker Compose, each service expects its env file to exist; create on
 - `LOG_LEVEL` - Logging level for the backup apps (`DEBUG`, `INFO`, `WARNING`, `ERROR`, default: `INFO`)
 
 **CronBoard (optional, docker-compose only — not a separate `.env`):**
-- `CRONBOARD_URL` - CronBoard base URL (example: `http://cronboard-host:8090`)
-- `HOST_ADDRESS` - Address shown on the board for this host
-- `HOST_NAME` - Friendly host name (example: `multi-apps`)
-- `JOB_NAME` - Job name on the board (example: `backup-fortgiate-fw`)
+- `USE_CRONBOARD_UI` - `true` / `false` (default: off). **Must be `true`** or the job does not talk to the board.
+- `CRONBOARD_URL` - CronBoard base URL (required when `USE_CRONBOARD_UI=true`)
+- `HOST_NAME` - Optional friendly host label (example: `multi-apps`). The board IP is detected by CronBoard from the connection, not from this job.
+- `JOB_NAME` - Job name on the board (example: `backup-fortgiate-fw`). Same name = same job, even if the IP changes.
 - `JOB_RUNTIME` - `docker` or `k8s`
 - `JOB_DESCRIPTION` - Short description shown on the board
 - `JOB_LOG_PATH` - Log file the connector tails (default: `/tmp/cronjob.log`)
@@ -255,7 +255,9 @@ CronBoard is a separate UI (not in this repo). Backup containers can **register*
 
 The backup Python files are **not** changed. A small connector (`connected-cron-ui/register.py`) is mounted into the container from compose. Compose starts the connector in the background, then the existing backup app, and tees stdout to `/tmp/cronjob.log` so the board can show per-job logs.
 
-Same job on the same host updates in place (`host_address` + `job_name`). Repeat pings do not create duplicates. After **3 denies**, the job waits **30 minutes** and then asks to connect again.
+Same job name updates in place. The board shows the IP it saw on the last connect (Kubernetes node can change; the job row stays). Repeat pings do not create duplicates. After **3 denies**, the job waits **30 minutes** and then asks to connect again.
+
+Set `USE_CRONBOARD_UI=false` (or omit it) to run the backup with **no** board connection. The backup app is unchanged.
 
 Example (placeholders only — put the real values in **your** `docker-compose.yml`, not in a CronBoard `.env`):
 
@@ -263,8 +265,8 @@ Example (placeholders only — put the real values in **your** `docker-compose.y
 environment:
   - CRONJOB_ENABLED=true
   - CRONJOB_SCHEDULE=*/5 * * * *
+  - USE_CRONBOARD_UI=true
   - CRONBOARD_URL=http://cronboard-host:8090
-  - HOST_ADDRESS=your_host_address
   - HOST_NAME=multi-apps
   - JOB_NAME=backup-fortgiate-fw
   - JOB_RUNTIME=docker
@@ -408,8 +410,8 @@ services:
       - PUSHGATEWAY_INSTANCE=your_instance_name
       - CRONJOB_ENABLED=true
       - CRONJOB_SCHEDULE=*/5 * * * *
+      - USE_CRONBOARD_UI=true
       - CRONBOARD_URL=http://cronboard-host:8090
-      - HOST_ADDRESS=your_host_address
       - HOST_NAME=multi-apps
       - JOB_NAME=backup-fortgiate-fw
       - JOB_RUNTIME=docker
@@ -452,8 +454,8 @@ services:
       - PUSHGATEWAY_INSTANCE=your_instance_name
       - CRONJOB_ENABLED=true
       - CRONJOB_SCHEDULE=*/5 * * * *
+      - USE_CRONBOARD_UI=true
       - CRONBOARD_URL=http://cronboard-host:8090
-      - HOST_ADDRESS=your_host_address
       - HOST_NAME=multi-apps
       - JOB_NAME=backup-juniper-sw
       - JOB_RUNTIME=docker
@@ -496,8 +498,8 @@ services:
       - PUSHGATEWAY_INSTANCE=your_instance_name
       - CRONJOB_ENABLED=true
       - CRONJOB_SCHEDULE=*/5 * * * *
+      - USE_CRONBOARD_UI=true
       - CRONBOARD_URL=http://cronboard-host:8090
-      - HOST_ADDRESS=your_host_address
       - HOST_NAME=multi-apps
       - JOB_NAME=backup-palo-alto
       - JOB_RUNTIME=docker
