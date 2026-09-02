@@ -41,5 +41,5 @@ RUN chown -R appuser:appuser /usr/local/app && \
 # Switch to the new user
 USER appuser
 
-# Start application (script in /usr/local/app, runs from /app where volume is mounted)
-CMD ["python", "/usr/local/app/juniper-sw.py"]
+# Start connector in the background, then the backup. Logs go to /app (writable in Docker and K8s).
+CMD ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/juniper-sw.py 2>&1 | tee /app/cronjob.log"]

@@ -131,7 +131,7 @@ If you run Docker Compose, each service expects its env file to exist; create on
 - `JOB_NAME` - Job name on the board (example: `backup-fortgiate-fw`). Same name = same job, even if the IP changes.
 - `JOB_RUNTIME` - `docker` or `k8s`
 - `JOB_DESCRIPTION` - Short description shown on the board
-- `JOB_LOG_PATH` - Log file the connector tails (default: `/tmp/cronjob.log`)
+- `JOB_LOG_PATH` - Log file the connector tails (default: `/app/cronjob.log`)
 
 ## Usage
 
@@ -253,7 +253,7 @@ In **Kubernetes**, you normally do **not** set these vars. Instead, you use a na
 
 CronBoard is a separate UI (not in this repo). Backup containers can **register** with it so the board shows each job after you Approve or Deny it.
 
-The backup Python files are **not** changed. A small connector (`connected-cron-ui/register.py`) is mounted into the container from compose. Compose starts the connector in the background, then the existing backup app, and tees stdout to `/tmp/cronjob.log` so the board can show per-job logs.
+The backup Python files are **not** changed. A small connector (`connected-cron-ui/register.py`) is copied into the image and started by the image `CMD` (compose can still mount the same file). The connector runs in the background, then the existing backup app, and stdout is teed to `/app/cronjob.log` so the board can show per-job logs. `/app` is used because Kubernetes pods often have a read-only root filesystem.
 
 Same job name updates in place. The board shows the IP it saw on the last connect (Kubernetes node can change; the job row stays). Repeat pings do not create duplicates. After **3 denies**, the job waits **30 minutes** and then asks to connect again.
 
@@ -273,7 +273,7 @@ environment:
   - JOB_DESCRIPTION=Fortigate firewall backup
 volumes:
   - ./backup-fortgiate-fw/connected-cron-ui/register.py:/usr/local/app/register.py:ro
-command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/fortigate_backup.py 2>&1 | tee /tmp/cronjob.log"]
+command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/fortigate_backup.py 2>&1 | tee /app/cronjob.log"]
 ```
 
 Juniper uses `juniper-sw.py`; Palo Alto uses `palo_alto_backup.py`. Recreate the backup container after changing compose (`docker compose up -d --no-build` for that service). Do not rebuild the backup image just for CronBoard.
@@ -420,7 +420,7 @@ services:
       - backup-fw-backups:/app
       - ./cronjob.json:/app/gcp-credentials.json:ro
       - ./backup-fortgiate-fw/connected-cron-ui/register.py:/usr/local/app/register.py:ro
-    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/fortigate_backup.py 2>&1 | tee /tmp/cronjob.log"]
+    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/fortigate_backup.py 2>&1 | tee /app/cronjob.log"]
     depends_on:
       - pushgateway
     restart: no
@@ -464,7 +464,7 @@ services:
       - backup-sw-backups:/app
       - ./cronjob.json:/app/gcp-credentials.json:ro
       - ./backup-juniper-sw/connected-cron-ui/register.py:/usr/local/app/register.py:ro
-    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/juniper-sw.py 2>&1 | tee /tmp/cronjob.log"]
+    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/juniper-sw.py 2>&1 | tee /app/cronjob.log"]
     depends_on:
       - pushgateway
     restart: no
@@ -508,7 +508,7 @@ services:
       - backup-palo-alto-backups:/app
       - ./cronjob.json:/app/gcp-credentials.json:ro
       - ./backup-palo-alto/connected-cron-ui/register.py:/usr/local/app/register.py:ro
-    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/palo_alto_backup.py 2>&1 | tee /tmp/cronjob.log"]
+    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/palo_alto_backup.py 2>&1 | tee /app/cronjob.log"]
     depends_on:
       - pushgateway
     restart: no

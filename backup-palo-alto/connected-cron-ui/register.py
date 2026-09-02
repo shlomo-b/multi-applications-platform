@@ -190,8 +190,8 @@ def main() -> None:
         return
     url = env("CRONBOARD_URL")
     if not url:
-        raise SystemExit("CRONBOARD_URL is empty — set it in docker-compose.yaml")
-    log_path = env("JOB_LOG_PATH", "/tmp/cronjob.log") or "/tmp/cronjob.log"
+        raise SystemExit("CRONBOARD_URL is empty — set it in compose or the CronJob env")
+    log_path = env("JOB_LOG_PATH", "/app/cronjob.log") or "/app/cronjob.log"
     threading.Thread(target=tail_log, args=(log_path,), daemon=True).start()
     interval = int(env("REGISTER_INTERVAL", "2") or "2")
     wait_blocked = int(env("BLOCK_RETRY_SECONDS", str(BLOCK_RETRY_SECONDS)) or BLOCK_RETRY_SECONDS)
