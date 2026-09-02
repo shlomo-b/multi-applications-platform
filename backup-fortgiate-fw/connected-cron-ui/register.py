@@ -30,6 +30,10 @@ def env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
+def cronboard_on() -> bool:
+    return env("USE_CRONBOARD_UI").lower() in {"1", "true", "yes", "on"}
+
+
 class RunWatch:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -127,7 +131,6 @@ def flush_logs(url: str) -> None:
     body = json.dumps(
         {
             "name": env("JOB_NAME") or env("PUSHGATEWAY_INSTANCE") or "backup-job",
-            "host_address": env("HOST_ADDRESS", "10.0.11.10"),
             "lines": lines,
         }
     ).encode()
@@ -155,10 +158,12 @@ def payload() -> dict:
         "schedule": env("CRONJOB_SCHEDULE") or "0 9 * * 5",
         "description": env("JOB_DESCRIPTION", "Backup job"),
         "runtime": env("JOB_RUNTIME", "docker"),
-        "host_address": env("HOST_ADDRESS", "10.0.11.10"),
-        "host_name": env("HOST_NAME", "multi-apps"),
+        "host_name": env("HOST_NAME"),
         "status": status,
     }
+    node_ip = env("NODE_IP") or env("HOST_IP")
+    if node_ip:
+        data["host_address"] = node_ip
     if WATCH.last_run:
         data["last_run"] = WATCH.last_run
     elif status == "Running":
@@ -180,6 +185,9 @@ def register_once(url: str) -> str:
 
 
 def main() -> None:
+    if not cronboard_on():
+        print("CronBoard off (set USE_CRONBOARD_UI=true to connect)", flush=True)
+        return
     url = env("CRONBOARD_URL")
     if not url:
         raise SystemExit("CRONBOARD_URL is empty — set it in docker-compose.yaml")
