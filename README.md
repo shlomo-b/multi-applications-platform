@@ -1,6 +1,6 @@
 # Multi-Applications Platform
 
-A platform for automated backup of network devices (Fortigate, Juniper, Palo Alto) with optional metrics collection.
+A platform for automated backup of network devices (Fortigate, Juniper, Palo Alto) with optional metrics collection and optional CronBoard job visibility.
 
 ## Overview
 
@@ -12,6 +12,7 @@ This platform consists of three main applications:
 - Saves configuration to local file (`fortigate_backup.conf`)
 - Optionally uploads to cloud storage (AWS S3, Azure Blob Storage, GCP Cloud Storage)
 - Optionally sends metrics to Prometheus Pushgateway
+- Optionally registers with CronBoard (schedule, host, Running/Idle, per-job logs)
 
 ### backup-sw (Juniper Switch Backup)
 - Connects to Juniper switches via SSH
@@ -19,6 +20,7 @@ This platform consists of three main applications:
 - Saves configuration to local file (`juniper_backup.txt`)
 - Optionally uploads to cloud storage (AWS S3, Azure Blob Storage, GCP Cloud Storage)
 - Optionally sends metrics to Prometheus Pushgateway
+- Optionally registers with CronBoard (schedule, host, Running/Idle, per-job logs)
 
 ### backup-palo-alto (Palo Alto Firewall Backup)
 - Connects to Palo Alto firewalls via REST API (HTTPS)
@@ -26,6 +28,7 @@ This platform consists of three main applications:
 - Saves configuration to local file (`palo_alto_backup.xml`)
 - Optionally uploads to cloud storage (AWS S3, Azure Blob Storage, GCP Cloud Storage)
 - Optionally sends metrics to Prometheus Pushgateway
+- Optionally registers with CronBoard (schedule, host, Running/Idle, per-job logs)
 
 ## Features
 
@@ -34,6 +37,7 @@ This platform consists of three main applications:
 - ✅ **Metrics collection** - Prometheus metrics via Pushgateway (backup apps)
 - ✅ **Modular architecture** - Separated concerns (metrics, cloud upload, main logic)
 - ✅ **Local storage** - Backup files stored in container when cloud is disabled
+- ✅ **CronBoard** - Optional dashboard: jobs appear, you Approve or Deny, then see schedule, host, Docker vs Kubernetes, Running/Idle, and logs
 
 ## Optional: Create your own .env files
 
@@ -119,6 +123,15 @@ If you run Docker Compose, each service expects its env file to exist; create on
 - `PUSHGATEWAY_JOB` - Job name for metrics (e.g. `backup-fw`, `backup-sw`, `backup-palo-alto`)
 - `PUSHGATEWAY_INSTANCE` - Instance identifier (default: `HOST` or `unknown`)
 - `LOG_LEVEL` - Logging level for the backup apps (`DEBUG`, `INFO`, `WARNING`, `ERROR`, default: `INFO`)
+
+**CronBoard (optional, docker-compose only — not a separate `.env`):**
+- `CRONBOARD_URL` - CronBoard base URL (example: `http://cronboard-host:8090`)
+- `HOST_ADDRESS` - Address shown on the board for this host
+- `HOST_NAME` - Friendly host name (example: `multi-apps`)
+- `JOB_NAME` - Job name on the board (example: `backup-fortgiate-fw`)
+- `JOB_RUNTIME` - `docker` or `k8s`
+- `JOB_DESCRIPTION` - Short description shown on the board
+- `JOB_LOG_PATH` - Log file the connector tails (default: `/tmp/cronjob.log`)
 
 ## Usage
 
@@ -235,6 +248,35 @@ When enabled, the container stays running and the logs will show a clear descrip
 - `CRONJOB_ENABLED=true. This Palo Alto cron job will run every month on day 1 at 03:00 (cron='0 3 1 * *').`
 
 In **Kubernetes**, you normally do **not** set these vars. Instead, you use a native `CronJob` resource to control the schedule, and each backup container runs once and exits.
+
+### Optional: CronBoard (Docker)
+
+CronBoard is a separate UI (not in this repo). Backup containers can **register** with it so the board shows each job after you Approve or Deny it.
+
+The backup Python files are **not** changed. A small connector (`connected-cron-ui/register.py`) is mounted into the container from compose. Compose starts the connector in the background, then the existing backup app, and tees stdout to `/tmp/cronjob.log` so the board can show per-job logs.
+
+Same job on the same host updates in place (`host_address` + `job_name`). Repeat pings do not create duplicates. After **3 denies**, the job waits **30 minutes** and then asks to connect again.
+
+Example (placeholders only — put the real values in **your** `docker-compose.yml`, not in a CronBoard `.env`):
+
+```yaml
+environment:
+  - CRONJOB_ENABLED=true
+  - CRONJOB_SCHEDULE=*/5 * * * *
+  - CRONBOARD_URL=http://cronboard-host:8090
+  - HOST_ADDRESS=your_host_address
+  - HOST_NAME=multi-apps
+  - JOB_NAME=backup-fortgiate-fw
+  - JOB_RUNTIME=docker
+  - JOB_DESCRIPTION=Fortigate firewall backup
+volumes:
+  - ./backup-fortgiate-fw/connected-cron-ui/register.py:/usr/local/app/register.py:ro
+command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/fortigate_backup.py 2>&1 | tee /tmp/cronjob.log"]
+```
+
+Juniper uses `juniper-sw.py`; Palo Alto uses `palo_alto_backup.py`. Recreate the backup container after changing compose (`docker compose up -d --no-build` for that service). Do not rebuild the backup image just for CronBoard.
+
+On the board: Approve or Deny, then see schedule, host, Docker vs Kubernetes, Running vs Idle, and that job's logs.
 
 ### Local Storage Only (No Cloud Upload)
 
@@ -364,9 +406,19 @@ services:
       - PUSHGATEWAY_ADDR=your_pushgateway_address
       - PUSHGATEWAY_JOB=backup-fw
       - PUSHGATEWAY_INSTANCE=your_instance_name
+      - CRONJOB_ENABLED=true
+      - CRONJOB_SCHEDULE=*/5 * * * *
+      - CRONBOARD_URL=http://cronboard-host:8090
+      - HOST_ADDRESS=your_host_address
+      - HOST_NAME=multi-apps
+      - JOB_NAME=backup-fortgiate-fw
+      - JOB_RUNTIME=docker
+      - JOB_DESCRIPTION=Fortigate firewall backup
     volumes:
       - backup-fw-backups:/app
       - ./cronjob.json:/app/gcp-credentials.json:ro
+      - ./backup-fortgiate-fw/connected-cron-ui/register.py:/usr/local/app/register.py:ro
+    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/fortigate_backup.py 2>&1 | tee /tmp/cronjob.log"]
     depends_on:
       - pushgateway
     restart: no
@@ -398,9 +450,19 @@ services:
       - PUSHGATEWAY_ADDR=your_pushgateway_address
       - PUSHGATEWAY_JOB=backup-sw
       - PUSHGATEWAY_INSTANCE=your_instance_name
+      - CRONJOB_ENABLED=true
+      - CRONJOB_SCHEDULE=*/5 * * * *
+      - CRONBOARD_URL=http://cronboard-host:8090
+      - HOST_ADDRESS=your_host_address
+      - HOST_NAME=multi-apps
+      - JOB_NAME=backup-juniper-sw
+      - JOB_RUNTIME=docker
+      - JOB_DESCRIPTION=Juniper switch backup
     volumes:
       - backup-sw-backups:/app
       - ./cronjob.json:/app/gcp-credentials.json:ro
+      - ./backup-juniper-sw/connected-cron-ui/register.py:/usr/local/app/register.py:ro
+    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/juniper-sw.py 2>&1 | tee /tmp/cronjob.log"]
     depends_on:
       - pushgateway
     restart: no
@@ -432,9 +494,19 @@ services:
       - PUSHGATEWAY_ADDR=your_pushgateway_address
       - PUSHGATEWAY_JOB=backup-palo-alto
       - PUSHGATEWAY_INSTANCE=your_instance_name
+      - CRONJOB_ENABLED=true
+      - CRONJOB_SCHEDULE=*/5 * * * *
+      - CRONBOARD_URL=http://cronboard-host:8090
+      - HOST_ADDRESS=your_host_address
+      - HOST_NAME=multi-apps
+      - JOB_NAME=backup-palo-alto
+      - JOB_RUNTIME=docker
+      - JOB_DESCRIPTION=Palo Alto firewall backup
     volumes:
       - backup-palo-alto-backups:/app
       - ./cronjob.json:/app/gcp-credentials.json:ro
+      - ./backup-palo-alto/connected-cron-ui/register.py:/usr/local/app/register.py:ro
+    command: ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/palo_alto_backup.py 2>&1 | tee /tmp/cronjob.log"]
     depends_on:
       - pushgateway
     restart: no
@@ -461,6 +533,8 @@ backup-fortgiate-fw/
 ├── cronjob.py             # Internal scheduler (Docker only; optional)
 ├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
+├── connected-cron-ui/
+│   └── register.py        # CronBoard connector (mounted by compose; do not edit backup scripts)
 ├── requirements.txt       # Python dependencies
 ├── image-tag.txt          # Image tag for CI/build
 └── Dockerfile
@@ -470,6 +544,8 @@ backup-juniper-sw/
 ├── cronjob.py             # Internal scheduler (Docker only; optional)
 ├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
+├── connected-cron-ui/
+│   └── register.py        # CronBoard connector (mounted by compose; do not edit backup scripts)
 ├── requirements.txt       # Python dependencies
 ├── image-tag.txt          # Image tag for CI/build
 └── Dockerfile
@@ -479,6 +555,8 @@ backup-palo-alto/
 ├── cronjob.py             # Internal scheduler (Docker only; optional)
 ├── cloud_upload.py        # Cloud storage logic (AWS/Azure/GCP)
 ├── metrics.py             # Prometheus metrics and Pushgateway push
+├── connected-cron-ui/
+│   └── register.py        # CronBoard connector (mounted by compose; do not edit backup scripts)
 ├── requirements.txt       # Python dependencies
 ├── image-tag.txt          # Image tag for CI/build
 └── Dockerfile
@@ -500,3 +578,4 @@ backup-palo-alto/
 - Cloud object names include date/time (e.g. `backup-fw/fortigate_backup_2026-02-07_123456.conf`, `backup-palo-alto/palo_alto_backup_2026-02-07_123456.xml`)
 - Azure Blob Storage uses the same env vars across all backup apps: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_CONTAINER`
 - GCP Cloud Storage requires a service account JSON key file; set `GCP_APPLICATION_CREDENTIALS` (or `GOOGLE_APPLICATION_CREDENTIALS`) to the path of that file inside the container (e.g. mount it as a volume). Use `GCP_BUCKET_NAME` or `GCS_BUCKET_NAME` for the bucket.
+- CronBoard settings live in `docker-compose.yml` (not a separate CronBoard `.env`). Do not edit `fortigate_backup.py`, `juniper-sw.py`, `palo_alto_backup.py`, or `cronjob.py` to connect the board.
