@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
-"""Tell CronBoard this job exists. Reads docker-compose env only. Does not change backup code."""
+"""Tell CronBoard this job exists. Reads compose / CronJob env only. Does not change backup code."""
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
+import signal
 import threading
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from pathlib import Path
 
 
 START_HINTS = (
     "running scheduled",
     "⏰",
+    "starting backup",
 )
 END_HINTS = (
     "completed successfully",
     "backup failed",
     "backup run failed",
     "failed. see logs",
+    "configuration saved",
+    "backup completed",
 )
 QUIET_AFTER_LOG_SECONDS = 8
 BLOCK_RETRY_SECONDS = 30 * 60
@@ -34,6 +40,10 @@ def cronboard_on() -> bool:
     return env("USE_CRONBOARD_UI").lower() in {"1", "true", "yes", "on"}
 
 
+def job_schedule() -> str:
+    return env("CRONJOB_SCHEDULE") or env("JOB_SCHEDULE") or "0 9 * * 5"
+
+
 class RunWatch:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -42,6 +52,7 @@ class RunWatch:
         self.tick_id = ""
         self.last_run: str | None = None
         self.last_log_at: float | None = None
+        self.stopping = False
 
     def on_line(self, line: str) -> None:
         text = line.strip()
@@ -58,7 +69,16 @@ class RunWatch:
                 self.running = False
                 self.finished_this_tick = True
 
+    def mark_idle(self) -> None:
+        with self._lock:
+            self.stopping = True
+            self.running = False
+            self.finished_this_tick = True
+
     def status(self, expr: str) -> str:
+        with self._lock:
+            if self.stopping:
+                return "Idle"
         now = datetime.now(timezone.utc)
         prev = None
         try:
@@ -91,7 +111,6 @@ class RunWatch:
                 return "Running"
             if self.running:
                 return "Running"
-            # cron just fired; wait for backup log lines
             if elapsed <= 12:
                 if not self.last_run:
                     self.last_run = datetime.now(timezone.utc).isoformat()
@@ -102,24 +121,43 @@ class RunWatch:
 WATCH = RunWatch()
 LOG_BUFFER: list[str] = []
 LOG_LOCK = threading.Lock()
+_SHUTDOWN = False
+
+
+def _ingest(line: str) -> None:
+    WATCH.on_line(line)
+    text = line.rstrip()
+    if not text or "cronboard register" in text.lower():
+        return
+    with LOG_LOCK:
+        LOG_BUFFER.append(text[:2000])
 
 
 def tail_log(path: str) -> None:
-    while not os.path.exists(path):
-        time.sleep(0.4)
-    with open(path, encoding="utf-8", errors="replace") as handle:
-        handle.seek(0, os.SEEK_END)
-        while True:
-            line = handle.readline()
-            if not line:
-                time.sleep(0.25)
-                continue
-            WATCH.on_line(line)
-            text = line.rstrip()
-            if not text or "cronboard register" in text.lower():
-                continue
-            with LOG_LOCK:
-                LOG_BUFFER.append(text[:2000])
+    """Follow the log from the start so short Kubernetes runs are not missed."""
+    log_file = Path(path)
+    while not log_file.exists():
+        time.sleep(0.2)
+    offset = 0
+    while not _SHUTDOWN:
+        try:
+            size = log_file.stat().st_size
+        except OSError:
+            time.sleep(0.25)
+            continue
+        if size < offset:
+            offset = 0
+        if size == offset:
+            time.sleep(0.2)
+            continue
+        with open(log_file, encoding="utf-8", errors="replace") as handle:
+            handle.seek(offset)
+            while True:
+                line = handle.readline()
+                if not line:
+                    offset = handle.tell()
+                    break
+                _ingest(line)
 
 
 def flush_logs(url: str) -> None:
@@ -140,22 +178,23 @@ def flush_logs(url: str) -> None:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=8) as resp:
-        resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read()
+    except Exception:
+        with LOG_LOCK:
+            LOG_BUFFER[:0] = lines
 
 
 def job_status() -> str:
-    expr = env("CRONJOB_SCHEDULE")
-    if not expr:
-        return "Idle"
-    return WATCH.status(expr)
+    return WATCH.status(job_schedule())
 
 
 def payload() -> dict:
     status = job_status()
     data = {
         "name": env("JOB_NAME") or env("PUSHGATEWAY_INSTANCE") or "backup-job",
-        "schedule": env("CRONJOB_SCHEDULE") or "0 9 * * 5",
+        "schedule": job_schedule(),
         "description": env("JOB_DESCRIPTION", "Backup job"),
         "runtime": env("JOB_RUNTIME", "docker"),
         "host_name": env("HOST_NAME"),
@@ -184,6 +223,17 @@ def register_once(url: str) -> str:
     return data.get("status", "unknown")
 
 
+def _final_ping(url: str) -> None:
+    global _SHUTDOWN
+    _SHUTDOWN = True
+    WATCH.mark_idle()
+    try:
+        register_once(url)
+        flush_logs(url)
+    except Exception:
+        pass
+
+
 def main() -> None:
     if not cronboard_on():
         print("CronBoard off (set USE_CRONBOARD_UI=true to connect)", flush=True)
@@ -192,10 +242,20 @@ def main() -> None:
     if not url:
         raise SystemExit("CRONBOARD_URL is empty — set it in compose or the CronJob env")
     log_path = env("JOB_LOG_PATH", "/app/cronjob.log") or "/app/cronjob.log"
+    Path(log_path).touch(exist_ok=True)
     threading.Thread(target=tail_log, args=(log_path,), daemon=True).start()
     interval = int(env("REGISTER_INTERVAL", "2") or "2")
     wait_blocked = int(env("BLOCK_RETRY_SECONDS", str(BLOCK_RETRY_SECONDS)) or BLOCK_RETRY_SECONDS)
-    while True:
+
+    def stop(_signum=None, _frame=None):
+        _final_ping(url)
+        raise SystemExit(0)
+
+    atexit.register(_final_ping, url)
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
+    while not _SHUTDOWN:
         try:
             status = register_once(url)
             if status == "blocked":
