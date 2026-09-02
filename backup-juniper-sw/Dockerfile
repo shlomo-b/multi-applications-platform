@@ -41,5 +41,5 @@ RUN chown -R appuser:appuser /usr/local/app && \
 # Switch to the new user
 USER appuser
 
-# Start connector in the background, then the backup. Logs go to /app (writable in Docker and K8s).
-CMD ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/juniper-sw.py 2>&1 | tee /app/cronjob.log"]
+# Start connector, then backup. sleep 8 keeps the connector alive so last log lines are sent.
+CMD ["sh", "-c", "python /usr/local/app/register.py & python -u /usr/local/app/juniper-sw.py 2>&1 | tee /app/cronjob.log; sleep 8"]
