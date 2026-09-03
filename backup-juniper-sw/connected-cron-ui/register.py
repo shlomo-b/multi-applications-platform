@@ -40,8 +40,78 @@ def cronboard_on() -> bool:
     return env("USE_CRONBOARD_UI").lower() in {"1", "true", "yes", "on"}
 
 
+def _k8s_get(path: str, token: str, context) -> dict | None:
+    host = env("KUBERNETES_SERVICE_HOST")
+    port = env("KUBERNETES_SERVICE_PORT") or "443"
+    if not host:
+        return None
+    url = f"https://{host}:{port}{path}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(req, context=context, timeout=4) as resp:
+            return json.loads(resp.read().decode())
+    except Exception:
+        return None
+
+
+def k8s_cron_schedule() -> str:
+    """When this process is a CronJob pod, send the CronJob spec.schedule to CronBoard."""
+    token_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    ns_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+    ca_path = Path("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+    if not token_path.exists() or not ns_path.exists() or not ca_path.exists():
+        return ""
+    try:
+        import ssl
+
+        token = token_path.read_text().strip()
+        ns = ns_path.read_text().strip()
+        pod = env("HOSTNAME") or env("POD_NAME")
+        if not token or not ns or not pod:
+            return ""
+        ctx = ssl.create_default_context(cafile=str(ca_path))
+        pod_obj = _k8s_get(f"/api/v1/namespaces/{ns}/pods/{pod}", token, ctx)
+        if not pod_obj:
+            return ""
+        job_name = next(
+            (
+                ref.get("name") or ""
+                for ref in pod_obj.get("metadata", {}).get("ownerReferences") or []
+                if ref.get("kind") == "Job"
+            ),
+            "",
+        )
+        if not job_name:
+            return ""
+        job_obj = _k8s_get(f"/apis/batch/v1/namespaces/{ns}/jobs/{job_name}", token, ctx)
+        if not job_obj:
+            return ""
+        cron_name = next(
+            (
+                ref.get("name") or ""
+                for ref in job_obj.get("metadata", {}).get("ownerReferences") or []
+                if ref.get("kind") == "CronJob"
+            ),
+            "",
+        )
+        if not cron_name:
+            return ""
+        cron_obj = _k8s_get(f"/apis/batch/v1/namespaces/{ns}/cronjobs/{cron_name}", token, ctx)
+        if not cron_obj:
+            return ""
+        return str((cron_obj.get("spec") or {}).get("schedule") or "").strip()
+    except Exception:
+        return ""
+
+
+_K8S_SCHEDULE = ""
+
+
 def job_schedule() -> str:
-    return env("CRONJOB_SCHEDULE") or env("JOB_SCHEDULE") or "0 9 * * 5"
+    global _K8S_SCHEDULE
+    if not _K8S_SCHEDULE:
+        _K8S_SCHEDULE = k8s_cron_schedule()
+    return _K8S_SCHEDULE or env("CRONJOB_SCHEDULE") or env("JOB_SCHEDULE") or "0 9 * * 5"
 
 
 class RunWatch:
