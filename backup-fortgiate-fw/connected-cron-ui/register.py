@@ -197,8 +197,21 @@ _SHUTDOWN = False
 def _ingest(line: str) -> None:
     WATCH.on_line(line)
     text = line.rstrip()
-    if not text or "cronboard register" in text.lower():
+    if not text:
         return
+    low = text.lower()
+    if "cronboard register" in low or low.startswith("cronboard:"):
+        return
+    with LOG_LOCK:
+        LOG_BUFFER.append(text[:2000])
+
+
+def board_note(message: str) -> None:
+    """One-line connector status for docker logs and CronBoard UI logs."""
+    text = message.strip()
+    if not text:
+        return
+    print(text, flush=True)
     with LOG_LOCK:
         LOG_BUFFER.append(text[:2000])
 
@@ -312,10 +325,17 @@ def main() -> None:
     if not url:
         raise SystemExit("CRONBOARD_URL is empty — set it in compose or the CronJob env")
     log_path = env("JOB_LOG_PATH", "/app/cronjob.log") or "/app/cronjob.log"
-    Path(log_path).touch(exist_ok=True)
+    job_name = env("JOB_NAME") or env("PUSHGATEWAY_INSTANCE") or "backup-job"
+    board_note(f"cronboard: connecting url={url} job={job_name}")
+    try:
+        Path(log_path).touch(exist_ok=True)
+    except OSError as exc:
+        print(f"cronboard: cannot write log file {log_path}: {exc}", flush=True)
+        raise
     threading.Thread(target=tail_log, args=(log_path,), daemon=True).start()
     interval = int(env("REGISTER_INTERVAL", "2") or "2")
     wait_blocked = int(env("BLOCK_RETRY_SECONDS", str(BLOCK_RETRY_SECONDS)) or BLOCK_RETRY_SECONDS)
+    last_status = ""
 
     def stop(_signum=None, _frame=None):
         _final_ping(url)
@@ -328,18 +348,33 @@ def main() -> None:
     while not _SHUTDOWN:
         try:
             status = register_once(url)
+            if status != last_status:
+                if status == "pending":
+                    board_note(f"cronboard: waiting approve job={job_name}")
+                elif status == "approved":
+                    board_note(f"cronboard: connected job={job_name}")
+                elif status == "blocked":
+                    board_note(
+                        f"cronboard: blocked (denied 3 times), retry in {wait_blocked // 60}m job={job_name}"
+                    )
+                else:
+                    board_note(f"cronboard: status={status} job={job_name}")
+                last_status = status
             if status == "blocked":
-                print(
-                    f"denied 3 times; will ask again in {wait_blocked // 60} minutes",
-                    flush=True,
-                )
                 time.sleep(wait_blocked)
+                last_status = ""
                 continue
             flush_logs(url)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode(errors="replace")[:200]
+            board_note(f"cronboard: HTTP {exc.code} {detail}")
+            last_status = ""
         except urllib.error.URLError as exc:
-            print(f"cronboard unreachable: {exc}", flush=True)
+            board_note(f"cronboard: unreachable {exc}")
+            last_status = ""
         except Exception as exc:
-            print(f"register error: {exc}", flush=True)
+            board_note(f"cronboard: register error {exc}")
+            last_status = ""
         time.sleep(interval)
 
 
