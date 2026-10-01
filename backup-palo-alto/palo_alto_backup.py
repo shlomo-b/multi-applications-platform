@@ -23,7 +23,12 @@ PASSWORD = os.environ.get("PASSWORD")
 backup_file = "palo_alto_backup.xml"
 VERIFY_SSL = os.environ.get("VERIFY_SSL", "false").lower() == "true"
 
-USE_METRICS = os.environ.get("metrics-pushgw", "false").lower() == "true"
+USE_METRICS = os.environ.get("METRICS_PUSHGW", os.environ.get("metrics-pushgw", "false")).strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 PUSHGATEWAY_ADDR = os.environ.get("PUSHGATEWAY_ADDR", "pushgateway:9091")
 PUSHGATEWAY_JOB = os.environ.get("PUSHGATEWAY_JOB", "backup-palo-alto")
 PUSHGATEWAY_INSTANCE = os.environ.get("PUSHGATEWAY_INSTANCE", HOST or "unknown")
