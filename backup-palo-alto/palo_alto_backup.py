@@ -23,12 +23,15 @@ PASSWORD = os.environ.get("PASSWORD")
 backup_file = "palo_alto_backup.xml"
 VERIFY_SSL = os.environ.get("VERIFY_SSL", "false").lower() == "true"
 
-USE_METRICS = os.environ.get("METRICS_PUSHGW", os.environ.get("metrics-pushgw", "false")).strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+def _env_flag(*names: str, default: str = "false") -> bool:
+    for name in names:
+        raw = os.environ.get(name)
+        if raw is not None and str(raw).strip() != "":
+            return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+    return str(default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+USE_METRICS = _env_flag("METRICS_PUSHGW", "metrics_pushgw")
 PUSHGATEWAY_ADDR = os.environ.get("PUSHGATEWAY_ADDR", "pushgateway:9091")
 PUSHGATEWAY_JOB = os.environ.get("PUSHGATEWAY_JOB", "backup-palo-alto")
 PUSHGATEWAY_INSTANCE = os.environ.get("PUSHGATEWAY_INSTANCE", HOST or "unknown")
@@ -194,7 +197,7 @@ def run_backup_once() -> bool:
         metrics.BACKUP_PALO_DURATION_SECONDS.labels(operation="total").observe(overall_duration)
         metrics.push_metrics(PUSHGATEWAY_ADDR, PUSHGATEWAY_JOB, PUSHGATEWAY_INSTANCE)
     else:
-        print("ℹ️  Metrics disabled. Set metrics-pushgw=true to enable Prometheus metrics.")
+        print("ℹ️  Metrics disabled. Set METRICS_PUSHGW=true or metrics_pushgw=true to enable Prometheus metrics.")
 
     return bool(config_success and cloud_success)
 
